@@ -522,7 +522,7 @@
   .route-time-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
 
   /* Leaflet dark override */
-  .leaflet-tile { filter: brightness(0.85) saturate(0.7) hue-rotate(180deg) invert(1); }
+  .leaflet-tile { filter: brightness(0.95); }
   .leaflet-container { background: #0d0f14; }
   .leaflet-popup-content-wrapper {
     background: var(--surface) !important;
@@ -722,6 +722,25 @@
     <div class="map-legend" id="mapLegend">
       <div class="legend-title">호차 범례</div>
       <div id="legendRows"></div>
+    </div>
+    <div id="tmapOverlay" style="display:none;position:absolute;top:12px;left:12px;z-index:1000;
+      background:var(--surface);border:1px solid rgba(251,191,36,0.4);border-radius:10px;
+      padding:10px 14px;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.3)">
+      <div style="font-size:10px;color:#fbbf24;font-weight:700;letter-spacing:.08em;margin-bottom:6px">🛣 T맵 실제 경로</div>
+      <div style="display:flex;gap:14px;align-items:flex-end">
+        <div>
+          <div id="tmapOverlayTime" style="font-family:JetBrains Mono,monospace;font-size:24px;font-weight:800;color:#fbbf24;line-height:1">—</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">실시간 교통</div>
+        </div>
+        <div>
+          <div id="tmapOverlayDist" style="font-family:JetBrains Mono,monospace;font-size:24px;font-weight:800;color:var(--text);line-height:1">—</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">도로 거리</div>
+        </div>
+        <div>
+          <div id="tmapOverlayStops" style="font-family:JetBrains Mono,monospace;font-size:24px;font-weight:800;color:var(--accent);line-height:1">—</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">정류장</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1224,7 +1243,11 @@ function init() {
 
   map = L.map('map', { zoomControl: false, attributionControl: false })
     .setView([CAMPUS.lat, CAMPUS.lng], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
   L.control.zoom({ position: 'topleft' }).addTo(map);
 
   const campusIcon = L.divIcon({
@@ -1400,6 +1423,9 @@ function selectBus(bus) {
     if (btn) btn.classList.remove('active');
     clearAllRoutes();
   }
+  // T맵 오버레이 숨기기
+  const overlay = document.getElementById('tmapOverlay');
+  if (overlay) overlay.style.display = 'none';
   document.querySelectorAll('.bus-tab:not(.yoil-tab)').forEach(t => {
     t.classList.toggle('active', t.dataset.bus === bus);
   });
@@ -1555,25 +1581,35 @@ async function loadTmapRoute() {
 }
 
 function drawTmapRoute(cacheKey) {
-  // Remove previous tmap layer
   if (tmapRouteLayer) { map.removeLayer(tmapRouteLayer); tmapRouteLayer = null; }
   const cached = tmapRouteCache[cacheKey];
   if (!cached || !cached.coords.length) return;
   const color = BUS_COLORS[currentBus] || '#888';
   tmapRouteLayer = L.polyline(cached.coords, {
-    color: color, weight: 5, opacity: 0.85,
-    dashArray: null
+    color: color, weight: 5, opacity: 0.85, dashArray: null
   }).addTo(map);
-  // Remove simple straight line
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
   map.fitBounds(tmapRouteLayer.getBounds().pad(0.1));
+  // 캐시된 결과로 오버레이 복원
+  if (cached.totalTime) updateTmapSummary(cached.totalTime, cached.totalDist, cached.stops.length);
 }
 
 function updateTmapSummary(totalTime, totalDist, stopCount) {
-  const el = document.getElementById('tmapSummary');
-  if (!el) return;
   const min = Math.round(totalTime / 60);
   const km  = (totalDist / 1000).toFixed(1);
+
+  // 지도 위 오버레이 업데이트
+  const overlay = document.getElementById('tmapOverlay');
+  if (overlay) {
+    document.getElementById('tmapOverlayTime').textContent  = min + '분';
+    document.getElementById('tmapOverlayDist').textContent  = km + 'km';
+    document.getElementById('tmapOverlayStops').textContent = stopCount + '개';
+    overlay.style.display = 'block';
+  }
+
+  // 오른쪽 패널 요약도 업데이트
+  const el = document.getElementById('tmapSummary');
+  if (!el) return;
   el.innerHTML = `
     <div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;padding:10px 12px;margin-bottom:12px">
       <div style="font-size:10px;color:var(--warn);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">🛣 T맵 실제 경로</div>
