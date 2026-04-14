@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ShuttleOps Mobile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --bg: #0d0f14;
+  --surface: #151820;
+  --surface2: #1c2030;
+  --border: #252a3a;
+  --accent: #3b82f6;
+  --accent2: #06b6d4;
+  --success: #10b981;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --radius: 10px;
+  --tab-h: 56px;
+  --header-h: 52px;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; }
+
+/* ── 헤더 ── */
+.header {
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  height:var(--header-h);
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:10px; padding:0 14px;
+}
+.header-logo { font-size:14px; font-weight:700; color:var(--accent); letter-spacing:.08em; }
+.header-spacer { flex:1; }
+.header-sync { font-size:10px; color:var(--muted); }
+.header-btn {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+}
+
+/* ── 탭 선택 바 (요일+호차) ── */
+.tab-bar {
+  position:fixed; top:var(--header-h); left:0; right:0; z-index:190;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.yoil-tabs {
+  display:flex; gap:0;
+  border-bottom:1px solid var(--border);
+  overflow-x:auto; scrollbar-width:none;
+}
+.yoil-tabs::-webkit-scrollbar { display:none; }
+.ytab {
+  flex:1; min-width:80px; padding:8px 4px; text-align:center;
+  font-size:12px; font-weight:500; color:var(--muted); cursor:pointer;
+  border-bottom:2px solid transparent; white-space:nowrap;
+  transition:color .15s;
+}
+.ytab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+.bus-tabs {
+  display:flex; gap:6px; padding:8px 12px;
+  overflow-x:auto; scrollbar-width:none;
+}
+.bus-tabs::-webkit-scrollbar { display:none; }
+.btab {
+  flex-shrink:0; padding:5px 14px; border-radius:20px;
+  font-size:12px; font-weight:600; cursor:pointer;
+  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+  transition:all .15s;
+}
+.btab.active { color:#fff; border-color:transparent; }
+
+/* 탭바 높이 계산 */
+.tab-bar-height { height:86px; } /* yoil(34) + bus(52) */
+
+/* ── 메인 콘텐츠 ── */
+.content {
+  position:fixed;
+  top:calc(var(--header-h) + 86px);
+  left:0; right:0;
+  bottom:var(--tab-h);
+  overflow:hidden;
+}
+
+/* ── 페이지 뷰 ── */
+.page { position:absolute; inset:0; overflow-y:auto; display:none; }
+.page.active { display:block; }
+
+/* ── 지도 뷰 ── */
+#map-page { padding:0; }
+#map { width:100%; height:100%; }
+
+/* ── 목록 뷰 ── */
+.stop-list { padding:10px; }
+.mode-toggle {
+  display:flex; gap:6px; padding:10px 12px 4px;
+  position:sticky; top:0; background:var(--bg); z-index:10;
+}
+.mode-btn {
+  flex:1; padding:8px; border-radius:8px; text-align:center;
+  font-size:12px; font-weight:600; cursor:pointer;
+  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+}
+.mode-btn.active { background:rgba(59,130,246,0.15); color:var(--accent); border-color:rgba(59,130,246,.4); }
+
+.stop-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); margin:6px 10px;
+  overflow:hidden; cursor:pointer;
+  transition:border-color .15s;
+}
+.stop-card:active { border-color:var(--accent); }
+.stop-card-header {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px;
+}
+.stop-num {
+  width:24px; height:24px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; flex-shrink:0;
+}
+.stop-name { font-size:14px; font-weight:600; flex:1; min-width:0; }
+.stop-time {
+  font-family:'JetBrains Mono',monospace; font-size:12px;
+  color:var(--warn); font-weight:600; white-space:nowrap;
+}
+.stop-detail { font-size:11px; color:var(--muted); padding:0 12px 8px 46px; line-height:1.5; }
+.stop-students {
+  padding:6px 12px 10px 46px;
+  display:flex; flex-wrap:wrap; gap:4px;
+}
+.student-chip {
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:6px; padding:2px 8px; font-size:11px; color:var(--text);
+}
+
+/* ── 최적화 뷰 ── */
+.opt-page { padding:12px; }
+.opt-section {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px; margin-bottom:12px;
+}
+.opt-title { font-size:13px; font-weight:700; color:var(--text); margin-bottom:10px; }
+.opt-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.opt-label { font-size:12px; color:var(--muted); flex:1; }
+.opt-val { font-size:13px; font-weight:600; color:var(--text); }
+.field-select {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  padding:8px 10px; border-radius:8px; font-size:13px;
+  font-family:'Noto Sans KR',sans-serif; width:100%; outline:none;
+}
+.big-btn {
+  width:100%; padding:14px; border-radius:10px; border:none;
+  font-size:14px; font-weight:700; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+  margin-bottom:8px;
+}
+.big-btn-primary { background:var(--accent); color:#fff; }
+.big-btn-success { background:var(--success); color:#fff; }
+.big-btn-warn { background:rgba(245,158,11,.15); color:var(--warn); border:1px solid rgba(245,158,11,.3); }
+.big-btn-ghost { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+.big-btn:disabled { opacity:.4; }
+
+.result-card {
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:8px; padding:10px 12px; margin-bottom:8px;
+}
+.result-bus { font-size:12px; font-weight:700; margin-bottom:4px; }
+.result-stat { font-size:11px; color:var(--muted); }
+
+/* ── 설정 뷰 ── */
+.setting-section {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); margin:10px; overflow:hidden;
+}
+.setting-row {
+  display:flex; align-items:center; padding:14px 16px;
+  border-bottom:1px solid var(--border); gap:12px;
+}
+.setting-row:last-child { border-bottom:none; }
+.setting-icon { font-size:18px; width:28px; text-align:center; }
+.setting-info { flex:1; }
+.setting-name { font-size:13px; font-weight:600; color:var(--text); }
+.setting-desc { font-size:11px; color:var(--muted); margin-top:1px; }
+.setting-action { color:var(--accent); font-size:12px; font-weight:600; }
+.setting-status { font-size:11px; }
+
+.input-field {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  padding:10px 12px; border-radius:8px; font-size:13px;
+  font-family:'Noto Sans KR',sans-serif; width:100%; outline:none;
+  margin-bottom:8px;
+}
+.input-field:focus { border-color:var(--accent); }
+
+/* ── 슬롯 목록 ── */
+.slot-item {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; margin:6px 10px;
+  display:flex; align-items:center; gap:10px; padding:12px;
+}
+.slot-name { flex:1; font-size:13px; font-weight:600; }
+.slot-date { font-size:10px; color:var(--muted); margin-top:2px; }
+.slot-btn {
+  padding:5px 12px; border-radius:6px; border:none;
+  font-size:11px; font-weight:600; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+}
+
+/* ── 하단 내비게이션 ── */
+.nav-bar {
+  position:fixed; bottom:0; left:0; right:0; z-index:200;
+  height:var(--tab-h);
+  background:var(--surface);
+  border-top:1px solid var(--border);
+  display:flex;
+}
+.nav-item {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:3px;
+  cursor:pointer; color:var(--muted);
+  transition:color .15s;
+}
+.nav-item.active { color:var(--accent); }
+.nav-icon { font-size:20px; line-height:1; }
+.nav-label { font-size:10px; font-weight:500; }
+
+/* ── 정류장 상세 바텀시트 ── */
+.bottom-sheet-overlay {
+  position:fixed; inset:0; z-index:300;
+  background:rgba(0,0,0,.5); display:none;
+}
+.bottom-sheet-overlay.open { display:block; }
+.bottom-sheet {
+  position:absolute; bottom:0; left:0; right:0;
+  background:var(--surface); border-radius:16px 16px 0 0;
+  max-height:85vh; overflow-y:auto;
+  padding-bottom:env(safe-area-inset-bottom, 20px);
+  transform:translateY(100%); transition:transform .25s ease;
+}
+.bottom-sheet-overlay.open .bottom-sheet { transform:translateY(0); }
+.bs-handle {
+  width:36px; height:4px; background:var(--border); border-radius:2px;
+  margin:12px auto 8px; flex-shrink:0;
+}
+.bs-header { padding:4px 16px 12px; }
+.bs-title { font-size:16px; font-weight:700; }
+.bs-subtitle { font-size:12px; color:var(--muted); margin-top:2px; }
+.bs-body { padding:0 16px 20px; }
+.bs-section { margin-bottom:16px; }
+.bs-label { font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+.bs-value { font-size:13px; color:var(--text); }
+.bs-time-row { display:flex; gap:10px; margin-bottom:12px; }
+.bs-time-box {
+  flex:1; background:var(--surface2); border:1px solid var(--border);
+  border-radius:8px; padding:10px; text-align:center;
+}
+.bs-time-label { font-size:10px; color:var(--muted); margin-bottom:4px; }
+.bs-time-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:var(--warn); }
+.bs-action-row { display:flex; gap:8px; margin-bottom:8px; }
+.bs-btn {
+  flex:1; padding:12px; border-radius:10px; border:none;
+  font-size:13px; font-weight:700; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+}
+.bs-btn-primary { background:var(--accent); color:#fff; }
+.bs-btn-danger { background:rgba(239,68,68,.15); color:var(--danger); border:1px solid rgba(239,68,68,.3); }
+.bs-btn-ghost { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+
+/* ── 편집 오버레이 ── */
+.edit-overlay {
+  position:fixed; inset:0; z-index:400;
+  background:rgba(0,0,0,.7); display:none;
+  align-items:flex-end;
+}
+.edit-overlay.open { display:flex; }
+.edit-sheet {
+  width:100%; background:var(--surface);
+  border-radius:16px 16px 0 0;
+  padding:16px 16px calc(env(safe-area-inset-bottom, 16px) + 16px);
+  max-height:90vh; overflow-y:auto;
+}
+.edit-title { font-size:15px; font-weight:700; margin-bottom:14px; }
+.edit-row { margin-bottom:10px; }
+.edit-label { font-size:11px; color:var(--muted); margin-bottom:4px; }
+.edit-actions { display:flex; gap:8px; margin-top:14px; }
+.edit-btn {
+  flex:1; padding:13px; border-radius:10px; border:none;
+  font-size:13px; font-weight:700; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+}
+
+/* ── 소요시간 모달 ── */
+.modal-overlay {
+  position:fixed; inset:0; z-index:500;
+  background:rgba(0,0,0,.7); display:none;
+  align-items:flex-end;
+}
+.modal-overlay.open { display:flex; }
+.modal-sheet {
+  width:100%; background:var(--surface);
+  border-radius:16px 16px 0 0;
+  padding:16px 16px calc(env(safe-area-inset-bottom, 16px) + 16px);
+  max-height:90vh; overflow-y:auto;
+}
+
+/* ── 지도 오버레이 ── */
+.map-overlay {
+  position:absolute; top:10px; left:10px; right:10px;
+  display:flex; flex-direction:column; gap:8px;
+  pointer-events:none; z-index:100;
+}
+.map-overlay > * { pointer-events:all; }
+.map-summary {
+  background:rgba(21,24,32,.9);
+  border:1px solid var(--border);
+  border-radius:10px; padding:8px 12px;
+  display:flex; gap:12px;
+  backdrop-filter:blur(8px);
+}
+.map-sum-item { text-align:center; flex:1; }
+.map-sum-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:var(--warn); }
+.map-sum-label { font-size:10px; color:var(--muted); margin-top:1px; }
+.map-btns { display:flex; gap:6px; }
+.map-btn {
+  flex:1; padding:8px 4px; border-radius:8px;
+  background:rgba(21,24,32,.9); border:1px solid var(--border);
+  color:var(--text); font-size:11px; font-weight:600; cursor:pointer;
+  text-align:center; backdrop-filter:blur(8px);
+  font-family:'Noto Sans KR',sans-serif;
+}
+.map-btn.active { background:rgba(59,130,246,.2); border-color:rgba(59,130,246,.5); color:var(--accent); }
+
+/* ── 추가 스타일 ── */
+.empty-state { text-align:center; padding:40px 20px; color:var(--muted); font-size:13px; }
+.badge {
+  display:inline-block; padding:1px 8px; border-radius:10px;
+  font-size:10px; font-weight:700;
+}
+.section-header {
+  padding:10px 12px 4px;
+  font-size:11px; color:var(--muted); font-weight:600;
+  text-transform:uppercase; letter-spacing:.06em;
+  position:sticky; top:0; background:var(--bg); z-index:5;
+}
+.divider { height:1px; background:var(--border); margin:8px 0; }
+.toast {
+  position:fixed; top:calc(var(--header-h) + 96px); left:50%; transform:translateX(-50%);
+  background:rgba(30,35,50,.95); border:1px solid var(--border);
+  border-radius:10px; padding:10px 18px; font-size:13px;
+  z-index:600; white-space:nowrap; pointer-events:none;
+  opacity:0; transition:opacity .2s;
+}
+.toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="header">
+  <div class="header-logo">🚌 ShuttleOps</div>
+  <div class="header-spacer"></div>
+  <span id="syncBadge" class="header-sync">○ 로딩 중</span>
+  <button class="header-btn" onclick="fetchSheetData()">↺</button>
+</div>
+
+<!-- 탭바: 요일 + 호차 -->
+<div class="tab-bar">
+  <div class="yoil-tabs" id="yoilTabs"></div>
+  <div class="bus-tabs" id="busTabs"></div>
+</div>
+
+<!-- 메인 콘텐츠 -->
+<div class="content">
+  <!-- 지도 페이지 -->
+  <div class="page active" id="page-map">
+    <div id="map"></div>
+    <div class="map-overlay">
+      <div class="map-summary" id="mapSummary" style="display:none">
+        <div class="map-sum-item">
+          <div class="map-sum-val" id="sumTime">—</div>
+          <div class="map-sum-label">소요시간</div>
+        </div>
+        <div class="map-sum-item">
+          <div class="map-sum-val" id="sumDist">—</div>
+          <div class="map-sum-label">도로거리</div>
+        </div>
+        <div class="map-sum-item">
+          <div class="map-sum-val" id="sumStops">—</div>
+          <div class="map-sum-label">정류장</div>
+        </div>
+      </div>
+      <div class="map-btns">
+        <button class="map-btn active" id="btnMode" onclick="toggleMode()">🌅 등원</button>
+        <button class="map-btn" onclick="loadTmapRoute()">🛣 경로</button>
+        <button class="map-btn" onclick="toggleAllRoutes()">🗺 전체</button>
+        <button class="map-btn" onclick="calcRouteTime()">⏱ 시간</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 목록 페이지 -->
+  <div class="page" id="page-list">
+    <div class="mode-toggle">
+      <div class="mode-btn active" id="modeBtn-board" onclick="setListMode('board', this)">🌅 등원</div>
+      <div class="mode-btn" id="modeBtn-alight" onclick="setListMode('alight', this)">🌆 하원</div>
+    </div>
+    <div id="stopListContainer"></div>
+  </div>
+
+  <!-- 최적화 페이지 -->
+  <div class="page" id="page-opt">
+    <div class="opt-page" id="optContainer"></div>
+  </div>
+
+  <!-- 슬롯/설정 페이지 -->
+  <div class="page" id="page-settings">
+    <div id="settingsContainer"></div>
+  </div>
+</div>
+
+<!-- 하단 내비게이션 -->
+<div class="nav-bar">
+  <div class="nav-item active" id="nav-map" onclick="showPage('map')">
+    <div class="nav-icon">🗺</div>
+    <div class="nav-label">지도</div>
+  </div>
+  <div class="nav-item" id="nav-list" onclick="showPage('list')">
+    <div class="nav-icon">📋</div>
+    <div class="nav-label">목록</div>
+  </div>
+  <div class="nav-item" id="nav-opt" onclick="showPage('opt')">
+    <div class="nav-icon">⚡</div>
+    <div class="nav-label">최적화</div>
+  </div>
+  <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+    <div class="nav-icon">⚙️</div>
+    <div class="nav-label">설정</div>
+  </div>
+</div>
+
+<!-- 정류장 상세 바텀시트 -->
+<div class="bottom-sheet-overlay" id="stopSheet" onclick="closeStopSheet(event)">
+  <div class="bottom-sheet" id="stopSheetInner">
+    <div class="bs-handle"></div>
+    <div class="bs-header">
+      <div class="bs-title" id="bsTitle">—</div>
+      <div class="bs-subtitle" id="bsSubtitle"></div>
+    </div>
+    <div class="bs-body" id="bsBody"></div>
+  </div>
+</div>
+
+<!-- 정류장 편집 오버레이 -->
+<div class="edit-overlay" id="editOverlay" onclick="closeEditOverlay(event)">
+  <div class="edit-sheet" onclick="event.stopPropagation()">
+    <div class="edit-title">✏️ 정류장 편집</div>
+    <div class="edit-row">
+      <div class="edit-label">정류장명</div>
+      <input class="input-field" id="editPlace" placeholder="정류장명">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">상세주소</div>
+      <input class="input-field" id="editDetail" placeholder="상세주소">
+    </div>
+    <div class="edit-row" style="display:flex;gap:8px">
+      <div style="flex:1">
+        <div class="edit-label">등원시간</div>
+        <input class="input-field" id="editBoard" placeholder="14:30">
+      </div>
+      <div style="flex:1">
+        <div class="edit-label">하원시간</div>
+        <input class="input-field" id="editAlight" placeholder="17:30">
+      </div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">위도</div>
+      <input class="input-field" id="editLat" placeholder="37.5030" type="number" step="any">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">경도</div>
+      <input class="input-field" id="editLng" placeholder="127.0670" type="number" step="any">
+    </div>
+    <div class="edit-actions">
+      <button class="edit-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text)" onclick="closeEditOverlay()">취소</button>
+      <button class="edit-btn" style="background:var(--accent);color:#fff" onclick="saveStopEdit()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 소요시간 모달 -->
+<div class="modal-overlay" id="timeModal" onclick="closeTimeModal(event)">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="bs-handle"></div>
+    <div id="timeModalContent"></div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+// Firebase + 공유 로직
+// ════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyAzqYepsZI2Oyjv7wh8skvdsG5iZSp4NSc",
+  authDomain: "shuttle-c5d56.firebaseapp.com",
+  projectId: "shuttle-c5d56",
+  storageBucket: "shuttle-c5d56.firebasestorage.app",
+  messagingSenderId: "550254837384",
+  appId: "1:550254837384:web:d62a2edc799743dba5693d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+async function saveToFirestore() {
+  try {
+    await db.collection('shuttle').doc('routes').set({
+      allRoutes: JSON.stringify(ALL_ROUTES),
+      busColors: JSON.stringify(BUS_COLORS),
+      updatedAt: new Date().toISOString()
+    });
+  } catch(e) { console.error('[Firebase] 저장 실패:', e); }
+}
+
+async function loadFromFirestore() {
+  try {
+    const doc = await db.collection('shuttle').doc('routes').get();
+    if (doc.exists) {
+      const data = doc.data();
+      const parsed = JSON.parse(data.allRoutes);
+      if (parsed && Object.keys(parsed).length > 0) Object.assign(ALL_ROUTES, parsed);
+      if (data.busColors) Object.assign(BUS_COLORS, JSON.parse(data.busColors));
+      return true;
+    }
+    return false;
+  } catch(e) { return false; }
+}
+
+async function getSavedSlotsFirestore() {
+  try {
+    const doc = await db.collection('shuttle').doc('slots').get();
+    return doc.exists ? (doc.data().slots || {}) : {};
+  } catch(e) { return {}; }
+}
+
+async function saveSlotsFirestore(slots) {
+  try { await db.collection('shuttle').doc('slots').set({ slots }); }
+  catch(e) {}
+}
+
+function startRealtimeSync() {
+  db.collection('shuttle').doc('routes').onSnapshot(doc => {
+    if (!doc.exists) return;
+    try {
+      const parsed = JSON.parse(doc.data().allRoutes);
+      if (parsed && Object.keys(parsed).length > 0) {
+        ALL_ROUTES = parsed;
+        ROUTES = ALL_ROUTES[currentYoil] || {};
+        refreshAll();
+      }
+    } catch(e) {}
+  });
+}
+
+// ════════════════════════════════════════════
+// 구글 시트 연동
+// ════════════════════════════════════════════
+const TMAP_KEY = 'zjk2IP7f081TP7qHntyd03bwHt7k5lQXK384eZGi';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzF4sVnQC3gPg4T73Hv3mevOFhrE7GOxrBhT7CIINcGjxvyZdW9yV8Dj0wWyjyonOhk/exec';
+let SHEET_ID = '1augGfF4LsrrJuqDozNar0s0dj0V5f7evDCoAGaLR6CI';
+let SHEET_NAME = '2026';
+
+function parseTime(val) {
+  if (!val) return null;
+  const m = String(val).match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return `${m[1].padStart(2,'0')}:${m[2]}`;
+}
+
+function parseSheetRows(rows) {
+  if (!rows || rows.length < 2) return null;
+  const hdr = rows[0];
+  const col = k => hdr.indexOf(k);
+  const iBoard = col('승차'), iBoardT = col('등원시간'), iAlight = col('하차'), iAlightT = col('하원시간');
+  const iPlace = col('승하차장소'), iYoil = col('요일'), iName = col('이름'), iAddr = col('주소');
+  const iLng = col('경도'), iLat = col('위도');
+  const newRoutes = {};
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => !c)) continue;
+    const yoil = r[iYoil] || '월수금';
+    const busB = String(r[iBoard] || '').trim();
+    const busA = String(r[iAlight] || '').trim();
+    const place = String(r[iPlace] || '').trim();
+    const name  = String(r[iName] || '').trim();
+    const addr  = String(r[iAddr] || '').trim();
+    const lat   = parseFloat(r[iLat]);
+    const lng   = parseFloat(r[iLng]);
+    const boardTime  = parseTime(r[iBoardT]);
+    const alightTime = parseTime(r[iAlightT]);
+    if (!yoil || (!busB && !busA)) continue;
+    const bus = busB || busA;
+    if (!newRoutes[yoil]) newRoutes[yoil] = {};
+    if (!newRoutes[yoil][bus]) newRoutes[yoil][bus] = [];
+    const existing = newRoutes[yoil][bus].find(s => s.place === place && Math.abs((s.lat||0)-lat) < 0.0001);
+    if (existing) {
+      if (name) existing.students.push({ name, level: '', gender: '' });
+    } else {
+      newRoutes[yoil][bus].push({
+        place, detail: addr, boardTime, alightTime,
+        lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng,
+        students: name ? [{ name, level: '', gender: '' }] : []
+      });
+    }
+  }
+  return Object.keys(newRoutes).length ? newRoutes : null;
+}
+
+async function fetchSheetData() {
+  setSyncStatus('syncing');
+  try {
+    const url = `${SCRIPT_URL}?id=${encodeURIComponent(SHEET_ID)}&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    const parsed = parseSheetRows(json.data || json);
+    if (parsed) {
+      ALL_ROUTES = parsed;
+      await saveToFirestore();
+      setSyncStatus('ok', '시트 연동 완료');
+    } else {
+      setSyncStatus('warn', '데이터 없음');
+    }
+  } catch(e) {
+    setSyncStatus('error', '연결 실패');
+  }
+  ROUTES = ALL_ROUTES[currentYoil] || {};
+  refreshAll();
+}
+
+function setSyncStatus(status, msg) {
+  const el = document.getElementById('syncBadge');
+  if (!el) return;
+  const map = { ok:'✅ 연동', syncing:'⟳ 동기화', warn:'⚠️ ' + (msg||''), error:'❌ 실패', fallback:'○ 내장 데이터' };
+  el.textContent = map[status] || msg || '';
+  el.style.color = { ok:'#10b981', syncing:'#f59e0b', warn:'#f59e0b', error:'#ef4444', fallback:'#64748b' }[status] || '#64748b';
+}
+
+// ════════════════════════════════════════════
+// 데이터
+// ════════════════════════════════════════════
+const FALLBACK_ROUTES = {"월수금": {"3": [{"place": "도성초", "detail": "서울 강남구 선릉로 423(역삼동, 동부센트레빌) 1308호", "boardTime": "14:20", "alightTime": "17:40", "lat": 37.5025321947482, "lng": 127.049488812496, "students": [{"name": "이채은 (Chloe Lee)", "level": "", "gender": ""}]}, {"place": "역삼푸르지오", "detail": "서울 강남구 언주로 332(역삼동, 역삼푸르지오아파트)", "boardTime": "14:28", "alightTime": "17:35", "lat": 37.4977567020815, "lng": 127.045940287845, "students": [{"name": "서진슬 (Jin Seo)", "level": "", "gender": ""}]}, {"place": "도곡렉슬 후문", "detail": "서울 강남구 선릉로 221(도곡동, 도곡렉슬아파트)", "boardTime": "14:35", "alightTime": "17:30", "lat": 37.4944567385337, "lng": 127.052828828247, "students": [{"name": "김시윤 (Peter Kim)", "level": "", "gender": ""}]}, {"place": "도곡초 정문 안나피아노", "detail": "서울 강남구 테헤란로 428(대치동, 테헤란로 대우 아이빌), 승차 도곡초", "boardTime": "14:43", "alightTime": null, "lat": 37.5057027435966, "lng": 127.054177760378, "students": [{"name": "심시아 (Sia Sim)", "level": "", "gender": ""}]}, {"place": "도곡초 정문 안나피아노", "detail": "서울 강남구 언주로 332(역삼동, 역삼푸르지오아파트)", "boardTime": "14:43", "alightTime": "17:30", "lat": 37.4977567020815, "lng": 127.045940287845, "students": [{"name": "김나은 (Elly Kim)", "level": "", "gender": ""}]}], "5": [{"place": "풍림아파트", "detail": "서울 강남구 영동대로112길 15(삼성동, 풍림아파트) 풍림 1차", "boardTime": "14:15", "alightTime": "17:45", "lat": 37.5156017397636, "lng": 127.061859136778, "students": [{"name": "김민진 (Minjin Kim)", "level": "", "gender": ""}]}, {"place": "대현초", "detail": "서울 강남구 삼성로 212(대치동, 은마아파트) 19동", "boardTime": "14:30", "alightTime": "17:30", "lat": 37.4969382701583, "lng": 127.063133935202, "students": [{"name": "김윤재 (Louis Kim)", "level": "", "gender": ""}]}, {"place": "하:주유소", "detail": "서울 강남구 대치동 63(대치동, 우성1차아파트) 3동 1201호", "boardTime": "14:30", "alightTime": "17:25", "lat": 37.5004492899432, "lng": 127.068786595175, "students": [{"name": "김도하 (Doha Kim)", "level": "", "gender": ""}]}, {"place": "대현초 돌봄", "detail": "서울 강남구 삼성로 212(대치동, 은마아파트) 23동, 승차 대현초", "boardTime": "14:30", "alightTime": "17:30", "lat": 37.4979215671981, "lng": 127.064278049876, "students": [{"name": "성시윤 (Leo Sung) 돌봄 (사랑반)", "level": "", "gender": ""}]}, {"place": "대현초", "detail": "서울 강남구 삼성로64길 5(대치동, 대치현대아파트) 105-902", "boardTime": "14:35", "alightTime": "17:25", "lat": 37.5007415035405, "lng": 127.061555455466, "students": [{"name": "손건우 (Leo Son)", "level": "", "gender": ""}]}], "6": [{"place": "미도아파트", "detail": "서울 강남구 삼성로 150대치동 쌍용", "boardTime": "14:35", "alightTime": "17:25", "lat": 37.4946123965445, "lng": 127.066632005665, "students": [{"name": "유서윤 (Claire You)", "level": "", "gender": ""}, {"name": "황제윤 (Jeyun Hwang)", "level": "", "gender": ""}]}, {"place": "미도아파트", "detail": "서울 강남구 삼성로 150(대치동, 한보미도맨션) 208동", "boardTime": "14:35", "alightTime": "17:25", "lat": 37.4956953285964, "lng": 127.068564677256, "students": [{"name": "이소미 (Somi Lee)", "level": "", "gender": ""}]}], "7": [{"place": "가람아파트", "detail": "서울 강남구 일원로 127(일원동, 가람아파트) 112동 502호", "boardTime": "14:30", "alightTime": "17:49", "lat": 37.4821984161084, "lng": 127.086319116786, "students": [{"name": "김태민 (Beckham Kim)", "level": "", "gender": ""}]}, {"place": "승차:왕북초", "detail": "서울 강남구 일원로14길 25(일원동, 푸른마을아파트)", "boardTime": "14:35", "alightTime": "17:45", "lat": 37.4847611401243, "lng": 127.080874727036, "students": [{"name": "김시현 (Dominic Kim)", "level": "", "gender": ""}, {"name": "양희세 (Hee Se Yang)", "level": "", "gender": ""}]}, {"place": "수서삼성", "detail": "서울 강남구 광평로34길 25-17(수서동) *수서삼성아파트 승하차", "boardTime": "14:35", "alightTime": "17:45", "lat": 37.4828170285431, "lng": 127.096085503165, "students": [{"name": "이채영 (Lane Lee)", "level": "", "gender": ""}]}, {"place": "우성7차", "detail": "서울 강남구 개포로110길 15(일원동, 일원동우성7차아파트) 112동 *DH자이 바로 맞은편 아파트", "boardTime": "14:42", "alightTime": "17:36", "lat": 37.49150891177, "lng": 127.077415225541, "students": [{"name": "정인우 (Inwoo Chung)", "level": "", "gender": ""}]}, {"place": "자이개포", "detail": "서울 강남구 영동대로 22(일원동, 디에이치 자이 개포) 812동", "boardTime": "14:45", "alightTime": "17:33", "lat": 37.4911808311942, "lng": 127.075968146617, "students": [{"name": "김민조 (Minjo Kim)", "level": "", "gender": ""}]}, {"place": "자이개포", "detail": "서울 강남구 영동대로 22(일원동, 디에이치 자이 개포) 806동", "boardTime": "14:45", "alightTime": "17:33", "lat": 37.4910081250049, "lng": 127.073740781559, "students": [{"name": "천나린 (Ayla Cheon)", "level": "", "gender": ""}]}, {"place": "자이개포", "detail": "서울 강남구 영동대로 22(일원동, 디에이치 자이 개포) 804동 2609호", "boardTime": "14:45", "alightTime": "17:33", "lat": 37.4905899557281, "lng": 127.07415530566, "students": [{"name": "송지오 (Jio Song)", "level": "", "gender": ""}]}, {"place": "승차 대모산역3번\n하차 대모산역7번", "detail": "서울 강남구 개포로 516(개포동, 개포주공아파트) 702동", "boardTime": "14:48", "alightTime": "17:25", "lat": 37.4904334259608, "lng": 127.072312853775, "students": [{"name": "유신우 (Leo You)", "level": "", "gender": ""}]}], "1": [{"place": "프레지던스 서문", "detail": "서울 강남구 삼성로 14(개포동, 개포자이 프레지던스) 405동", "boardTime": "14:25", "alightTime": "17:40", "lat": 37.4854324061426, "lng": 127.069013617654, "students": [{"name": "박서준 (Seojun Park)", "level": "", "gender": ""}, {"name": "황찬우 (Chanwoo Hwang)", "level": "", "gender": ""}]}, {"place": "프레지던스 서문", "detail": "서울 강남구 삼성로 14(개포동, 개포자이 프레지던스) 412동", "boardTime": "14:30", "alightTime": "17:40", "lat": 37.4838615124208, "lng": 127.071140242725, "students": [{"name": "양서진 (Logan Yang)", "level": "", "gender": ""}]}, {"place": "삼성래미안", "detail": "서울 강남구 남부순환로 2803(도곡동, 삼성래미안아파트)", "boardTime": "14:35", "alightTime": "17:35", "lat": 37.4891125678318, "lng": 127.052934014767, "students": [{"name": "윤재상 (Jaesang Yoon)", "level": "", "gender": ""}]}]}, "유치부": {"3": [{"place": "역삼 푸르지오", "detail": "서울 강남구 역삼로 314(역삼동, 개나리 푸르지오) 303동 404호", "boardTime": "08:40", "alightTime": "15:40", "lat": 37.5000056730158, "lng": 127.050516407497, "students": [{"name": "이나현 (Amy Lee)", "level": "", "gender": ""}]}, {"place": "도곡렉슬", "detail": "서울 강남구 선릉로 221(도곡동, 도곡렉슬아파트) 208동 1101호", "boardTime": "08:45", "alightTime": "15:33", "lat": 37.4936849146643, "lng": 127.049994922546, "students": [{"name": "원준호 (Jun Won)", "level": "", "gender": ""}]}, {"place": "도곡렉슬 정문", "detail": "서울 강남구 삼성로51길 35도곡렉슬 정문", "boardTime": "08:48", "alightTime": "15:33", "lat": 37.4947980211592, "lng": 127.060394183209, "students": [{"name": "김지유 (Jeeyoo Kim)", "level": "", "gender": ""}]}, {"place": "도곡렉슬 정문", "detail": "서울 강남구 선릉로 221(도곡동, 도곡렉슬아파트) 201 *정문", "boardTime": "08:48", "alightTime": "15:33", "lat": 37.4944567385337, "lng": 127.052828828247, "students": [{"name": "이채윤 (Elin Lee)", "level": "", "gender": ""}]}, {"place": "대치아이파크", "detail": "서울 강남구 선릉로 222(대치동, 대치아이파크아파트) 110동", "boardTime": "08:55", "alightTime": "15:25", "lat": 37.4944842456847, "lng": 127.054166533997, "students": [{"name": "김지율 (Vicky Kim)", "level": "", "gender": ""}]}, {"place": "도곡초", "detail": "서울 강남구 대치동 954-23(대치동) 한티역 도곡초 뒷편", "boardTime": "09:00", "alightTime": "15:15", "lat": 37.5045854195988, "lng": 127.060463446397, "students": [{"name": "이엘 (El Lee)", "level": "", "gender": ""}]}, {"place": "화목 6시 1호", "detail": "서울 강남구 영동대로 230(대치동, 우성1차아파트) 1동 1407호", "boardTime": "09:10", "alightTime": "03:07", "lat": 37.4994063882719, "lng": 127.069144647142, "students": [{"name": "조우진 (Woojin Cho)", "level": "", "gender": ""}]}, {"place": "우성1차", "detail": "서울 강남구 영동대로 230(대치동, 우성1차아파트) 2동 401호", "boardTime": "09:10", "alightTime": "03:07", "lat": 37.4999018985288, "lng": 127.068879911276, "students": [{"name": "이은재 (Eunjae Lee)", "level": "", "gender": ""}]}], "5": [{"place": "청담동", "detail": "서울 강남구 영동대로114길 56청담동 63-1", "boardTime": "08:40", "alightTime": "15:50", "lat": 37.5169223028748, "lng": 127.063508923178, "students": [{"name": "최하이 (Hai Choi)", "level": "", "gender": ""}]}, {"place": "래미안삼성", "detail": "서울 강남구 영동대로114길 56(삼성동, 래미안 삼성1차) 101동", "boardTime": "08:47", "alightTime": "15:38", "lat": 37.5164732986162, "lng": 127.063244337666, "students": [{"name": "채로하 (Loha Chae)", "level": "", "gender": ""}]}, {"place": "풍림아파트", "detail": "서울 강남구 영동대로112길 15(삼성동, 풍림아파트) 풍림1차 1813호", "boardTime": "08:50", "alightTime": "15:35", "lat": 37.5156017397636, "lng": 127.061859136778, "students": [{"name": "김민규 (Mingyu Kim)", "level": "", "gender": ""}]}, {"place": "삼성동", "detail": "서울 강남구 봉은사로82길 25-1(삼성동)봉은사로82길 25-1", "boardTime": "08:57", "alightTime": "15:25", "lat": 37.5116584805574, "lng": 127.055580471004, "students": [{"name": "이진원 (Jinwon Lee)", "level": "", "gender": ""}]}, {"place": "삼성파크", "detail": "서울 강남구 삼성로99길 14(삼성동, 삼성파크아파트) 101동 909호", "boardTime": "09:00", "alightTime": "15:10", "lat": 37.509302223881, "lng": 127.053570901226, "students": [{"name": "이서현 (Seohyun Lee)", "level": "", "gender": ""}]}, {"place": "에델루이", "detail": "서울 강남구 역삼로 532(대치동, 디에이치 대치 에델루이) 102동 103호", "boardTime": "09:07", "alightTime": "15:12", "lat": 37.5028385631294, "lng": 127.060257906257, "students": [{"name": "유수안 (Suan Yoo)", "level": "", "gender": ""}]}, {"place": "대치르엘", "detail": "서울 강남구 도곡로93길 23(대치동, 대치 르엘) 105동 604호", "boardTime": "09:10", "alightTime": "15:08", "lat": 37.501380467775, "lng": 127.063995953671, "students": [{"name": "진동훈 (Eric Jin)", "level": "", "gender": ""}]}], "6": [{"place": "버스정류장", "detail": "서울 강남구 개포로 310(개포동, 디에이치퍼스티어아이파크) 111동", "boardTime": "08:45", "alightTime": "15:28", "lat": 37.4824506080516, "lng": 127.057943035137, "students": [{"name": "안지호 (Ben Ahn)", "level": "", "gender": ""}]}, {"place": "2게이트", "detail": "서울 강남구 개포로 310(개포동, 디에이치퍼스티어아이파크) 140동", "boardTime": "08:50", "alightTime": "15:37", "lat": 37.4784584570343, "lng": 127.057002318466, "students": [{"name": "이유이 (Yui Lee)", "level": "", "gender": ""}]}, {"place": "래미안 정문", "detail": "서울 강남구 개포로 310(개포동, 디에이치퍼스티어아이파크) 148동 1803호", "boardTime": "08:50", "alightTime": "15:32", "lat": 37.4779077339526, "lng": 127.059193092271, "students": [{"name": "김수호 (Suho Kim)", "level": "", "gender": ""}]}, {"place": "5게이트", "detail": "서울 강남구 개포로 310(개포동, 디에이치퍼스티어아이파크) 166동", "boardTime": "08:55", "alightTime": "15:37", "lat": 37.4797436522829, "lng": 127.060271973526, "students": [{"name": "한도윤 (Doyoon Han)", "level": "", "gender": ""}]}, {"place": "2게이트", "detail": "서울 강남구 선릉로 8(개포동, 래미안블레스티지) 222동 1001호", "boardTime": "09:00", "alightTime": "15:33", "lat": 37.4806730588962, "lng": 127.06420753572, "students": [{"name": "전제인 (Jane Jeon)", "level": "", "gender": ""}]}], "7": [{"place": "상록스타힐스", "detail": "서울 강남구 영동대로 16(일원동, 상록 스타힐스)", "boardTime": "08:35", "alightTime": "15:17", "lat": 37.4887693634927, "lng": 127.076900312615, "students": [{"name": "박서하 (Stella Park)", "level": "", "gender": ""}]}, {"place": "루체하임", "detail": "서울 강남구 개포로110길 50(일원동, 래미안 개포 루체하임)", "boardTime": "08:53", "alightTime": "03:22", "lat": 37.4905387842675, "lng": 127.079733886395, "students": [{"name": "노아준 (Ajun Rho)", "level": "", "gender": ""}, {"name": "권래아 (Raea Kwon)", "level": "", "gender": ""}]}, {"place": "자이개포", "detail": "서울 강남구 영동대로 22(일원동, 디에이치 자이 개포) 804동 209호", "boardTime": "09:02", "alightTime": "03:19", "lat": 37.4905899557281, "lng": 127.07415530566, "students": [{"name": "박시후 (Danny Park)", "level": "", "gender": ""}]}, {"place": "자이개포", "detail": "서울 강남구 영동대로 22(일원동, 디에이치 자이 개포) 812동 1206호", "boardTime": "09:02", "alightTime": "03:19", "lat": 37.4911808311942, "lng": 127.075968146617, "students": [{"name": "박채이 (Chai Park)", "level": "", "gender": ""}]}, {"place": "승차 대모산역3번\n하차 대모산역7번", "detail": "서울 강남구 개포로 516(개포동, 개포주공아파트) 702동", "boardTime": "09:10", "alightTime": "15:15", "lat": 37.4904334259608, "lng": 127.072312853775, "students": [{"name": "유지우 (Elsa Yoo)", "level": "", "gender": ""}]}], "1": [{"place": "프레지던스", "detail": "서울 강남구 삼성로 14(개포동, 개포자이 프레지던스) 425동", "boardTime": "08:45", "alightTime": "15:30", "lat": 37.4855197040413, "lng": 127.072867241632, "students": [{"name": "안수정 (Crystal Ahn)", "level": "", "gender": ""}]}, {"place": "대치초교앞", "detail": "서울 강남구 선릉로 120(대치동, 개포1,2차우성아파트) 1차 7동", "boardTime": "08:55", "alightTime": "15:20", "lat": 37.491558528799, "lng": 127.060476892378, "students": [{"name": "임유찬 (Yuchan Im)", "level": "", "gender": ""}]}, {"place": "대치초교앞", "detail": "서울 강남구 영동대로 230(대치동, 개포1,2차우성아파트) 1차 6동", "boardTime": "08:55", "alightTime": "15:20", "lat": 37.5008463213691, "lng": 127.069203095115, "students": [{"name": "김주현 (Jennie Kim)", "level": "", "gender": ""}]}, {"place": "대치팰리스", "detail": "서울 강남구 삼성로51길 35(대치동, 래미안 대치 팰리스) 111동", "boardTime": "09:02", "alightTime": "15:15", "lat": 37.4947980211592, "lng": 127.060394183209, "students": [{"name": "문승우 (Benjamin Moon)", "level": "", "gender": ""}]}]}, "화목": {"3": [{"place": "역삼아이파크", "detail": "서울 강남구 도곡로57길 12(역삼동, 역삼2차아이파크) 107-404", "boardTime": "14:25", "alightTime": "18:40", "lat": 37.4968984812036, "lng": 127.051930564184, "students": [{"name": "김우진 (Eric Kim)", "level": "", "gender": ""}]}, {"place": "도곡카운티", "detail": "서울 강남구 도곡로 320(도곡동, 래미안도곡카운티) 105동 401호", "boardTime": "14:40", "alightTime": "18:10", "lat": 37.495141889496, "lng": 127.050503952345, "students": [{"name": "유서준 (Jay Ryou)", "level": "", "gender": ""}]}, {"place": "삼익사거리", "detail": "서울 강남구 논현로41길 10(도곡동, 대림아파트) 102동 *삼익사거리", "boardTime": "14:40", "alightTime": "18:30", "lat": 37.4863391626432, "lng": 127.040090917858, "students": [{"name": "노윤 (Yoon Noh)", "level": "", "gender": ""}]}, {"place": "도곡렉슬 후문\n(화요일 등원 시만 정문)", "detail": "서울 강남구 선릉로 221(도곡동, 도곡렉슬아파트)", "boardTime": "14:42", "alightTime": "18:20", "lat": 37.4944567385337, "lng": 127.052828828247, "students": [{"name": "김시온 (Lily Kim)", "level": "", "gender": ""}]}], "5": [{"place": "풍림아파트", "detail": "서울 강남구 영동대로112길 15(삼성동, 풍림아파트)1차 1202호", "boardTime": "14:25", "alightTime": "18:40", "lat": 37.5156017397636, "lng": 127.061859136778, "students": [{"name": "장서준 (Leo Jang)", "level": "", "gender": ""}]}, {"place": "카페 1  14:35", "detail": "서울 강남구 삼성로 212(대치동, 은마아파트) 9동 1001호", "boardTime": "14:40", "alightTime": "18:10", "lat": 37.4983730156988, "lng": 127.067447420831, "students": [{"name": "김재준 (JJ Kim)", "level": "", "gender": ""}]}, {"place": "우성1차", "detail": "서울 강남구 영동대로 230(대치동, 우성1차아파트) 6동 705호", "boardTime": "14:40", "alightTime": "18:10", "lat": 37.5008463213691, "lng": 127.069203095115, "students": [{"name": "장민우 (Jason Chang)", "level": "", "gender": ""}]}, {"place": "에델루이", "detail": "서울 강남구 대치동 964(대치동, 디에이치 대치 에델루이) 105동 702호", "boardTime": "14:45", "alightTime": "18:15", "lat": 37.5031323944174, "lng": 127.060104049873, "students": [{"name": "양유찬 (Albert Yang)", "level": "", "gender": ""}]}], "6": [{"place": "쌍용개포", "detail": "서울 강남구 언주로 101(개포동, 쌍용개포아파트) 602호", "boardTime": "14:25", "alightTime": "18:33", "lat": 37.4810523371475, "lng": 127.053273585133, "students": [{"name": "김영준 (Youngjun Kim)", "level": "", "gender": ""}]}, {"place": "3GATE", "detail": "서울 강남구 개포로 310(개포동, 디에이치퍼스티어아이파크) 127동 602호", "boardTime": "14:28", "alightTime": "18:35", "lat": 37.4810131062109, "lng": 127.056331404608, "students": [{"name": "이시훈 (Sihun Lee)", "level": "", "gender": ""}]}, {"place": "래미안블레스티지", "detail": "서울 강남구 선릉로 8(개포동, 래미안블레스티지)222동 1203호", "boardTime": "14:40", "alightTime": "18:45", "lat": 37.4806730588962, "lng": 127.06420753572, "students": [{"name": "최지안 (Jian Choi)", "level": "", "gender": ""}]}, {"place": "래미안블레스티지", "detail": "서울 강남구 선릉로 8(개포동, 래미안블레스티지)", "boardTime": "14:43", "alightTime": "18:45", "lat": 37.4813279513186, "lng": 127.062644182871, "students": [{"name": "장현준 (Jun Jang)", "level": "", "gender": ""}]}, {"place": "미도아파트", "detail": "서울 강남구 삼성로 150(대치동, 한보미도맨션) 101동 309호", "boardTime": "14:50", "alightTime": "18:18", "lat": 37.493565220333, "lng": 127.064963289692, "students": [{"name": "강서윤 (Sophia Kang)", "level": "", "gender": ""}, {"name": "최아진 (Ajin Choi)", "level": "", "gender": ""}]}, {"place": "미도아파트", "detail": "서울 강남구 삼성로 150(대치동, 한보미도맨션) 107동 107호", "boardTime": "14:50", "alightTime": "18:18", "lat": 37.4938779508134, "lng": 127.066403585628, "students": [{"name": "방민성 (Lucas Bang)", "level": "", "gender": ""}]}, {"place": "등원: 대곡 6호차\n은마아파트", "detail": "서울 강남구 삼성로 212(대치동, 은마아파트) 30동 807", "boardTime": "14:50", "alightTime": "18:20", "lat": 37.4961237180009, "lng": 127.065346212922, "students": [{"name": "장윤채 (Evelyn Jang)", "level": "", "gender": ""}]}, {"place": "현대1차", "detail": "서울 강남구 개포로 303(개포동, 현대1차아파트)", "boardTime": null, "alightTime": "18:35", "lat": 37.4828329641428, "lng": 127.054756426449, "students": [{"name": "이도영 (Lily Lee)", "level": "", "gender": ""}]}], "7": [{"place": "청솔빌리지", "detail": "서울 강남구 광평로10길 50(일원동, 청솔빌리지) 101동 103호", "boardTime": "14:28", "alightTime": "18:45", "lat": 37.4808715864073, "lng": 127.083140236076, "students": [{"name": "조은솔 (Zoe Cho)", "level": "", "gender": ""}]}, {"place": "청솔빌리지", "detail": "서울 강남구 광평로10길 50(일원동, 청솔빌리지) 108동-101호", "boardTime": "14:28", "alightTime": "18:45", "lat": 37.4805819017533, "lng": 127.082451235375, "students": [{"name": "이하은 (Ella Lee)", "level": "", "gender": ""}]}, {"place": "가람아파트", "detail": "서울 강남구 일원로 127(일원동, 가람아파트)", "boardTime": "14:30", "alightTime": "18:42", "lat": 37.4822361307005, "lng": 127.084756407719, "students": [{"name": "김부민 (Lincoln Kim)", "level": "", "gender": ""}]}, {"place": "루체하임", "detail": "서울 강남구 개포로110길 50(일원동, 래미안 개포 루체하임) 104동", "boardTime": "14:42", "alightTime": "18:29", "lat": 37.4888717802859, "lng": 127.079854538171, "students": [{"name": "김선영 (SeonYoung Kim)", "level": "", "gender": ""}]}, {"place": "우성7차", "detail": "서울 강남구 개포로110길 15(일원동, 일원동우성7차아파트) 111동 1002호", "boardTime": "14:45", "alightTime": "18:25", "lat": 37.4925236698258, "lng": 127.079403377872, "students": [{"name": "서지운 (Jiun Seo)", "level": "", "gender": ""}]}, {"place": "우성7차", "detail": "서울 강남구 개포로110길 15(일원동, 일원동우성7차아파트)", "boardTime": "14:45", "alightTime": "18:25", "lat": 37.49150891177, "lng": 127.077415225541, "students": [{"name": "정지호 (Jiho Jung)", "level": "", "gender": ""}]}, {"place": "자이개포", "detail": "서울 강남구 영동대로 22(일원동, 디에이치 자이 개포) 805동 2403호", "boardTime": "14:48", "alightTime": "18:22", "lat": 37.4910994563242, "lng": 127.074155646381, "students": [{"name": "오수현 (Ayaan Oh)", "level": "", "gender": ""}]}, {"place": "자이개포", "detail": "서울 강남구 영동대로 22(일원동, 디에이치 자이 개포) 813동 2603호", "boardTime": "14:48", "alightTime": "18:22", "lat": 37.491084030576, "lng": 127.076808932346, "students": [{"name": "주시온 (Sean Joo)", "level": "", "gender": ""}]}], "1": [{"place": "승:개포초", "detail": "서울 강남구 삼성로 14(개포동, 개포자이 프레지던스) 430동 605호", "boardTime": "14:35", "alightTime": "18:30", "lat": 37.4865581768259, "lng": 127.074471964915, "students": [{"name": "이여름 (Summer Lee)", "level": "", "gender": ""}]}, {"place": "승차 대도초", "detail": "서울 강남구 남부순환로 2803(도곡동, 삼성래미안아파트) 103동 1801호", "boardTime": "14:45", "alightTime": "18:30", "lat": 37.4891125678318, "lng": 127.052934014767, "students": [{"name": "윤상훈 (Leo Yoon)", "level": "", "gender": ""}]}, {"place": "집 1 14:30", "detail": "서울 강남구 삼성로 212(대치동, 은마아파트) 19동 1414호", "boardTime": "14:50", "alightTime": "18:30", "lat": 37.4969382701583, "lng": 127.063133935202, "students": [{"name": "박서준 (Aiden Park)", "level": "", "gender": ""}]}]}};
+
+let ALL_ROUTES = JSON.parse(JSON.stringify(FALLBACK_ROUTES));
+let currentYoil = '유치부';
+let ROUTES = ALL_ROUTES[currentYoil] || {};
+let syncTimer = null;
+const YOIL_LIST = ['유치부', '월수금', '화목'];
+let BUS_COLORS = { '1': '#3b82f6', '3': '#10b981', '5': '#f59e0b', '6': '#8b5cf6', '7': '#ef4444' };
+const BUS_NAMES  = { '1': '1호차', '3': '3호차', '5': '5호차', '6': '6호차', '7': '7호차' };
+const CAMPUS = { lat: 37.5030, lng: 127.0670, name: '대치캠퍼스' };
+let map, currentBus = '1', currentMode = 'board';
+let markers = [], routeLine = null, campusMarker = null;
+let tmapRouteCache = {};
+let tmapRouteLayer = null;
+let currentPage = 'map';
+let listMode = 'board';
+let editingStopIdx = null;
+let editingBus = null;
+
+function calcDist(lat1,lng1,lat2,lng2) {
+  const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+async function fetchSegment(p1, p2) {
+  const url = `https://apis.openapi.sk.com/tmap/routes?version=1&format=json` +
+    `&startX=${p1.lng}&startY=${p1.lat}` +
+    `&endX=${p2.lng}&endY=${p2.lat}` +
+    `&startName=${encodeURIComponent(p1.place||'출발')}&endName=${encodeURIComponent(p2.place||'도착')}` +
+    `&reqCoordType=WGS84GEO&resCoordType=WGS84GEO&trafficInfo=Y`;
+
+  const res = await fetch(url, { headers: { appKey: TMAP_KEY } });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`T맵 ${res.status}: ${body.slice(0,200)}`);
+  }
+  const data = await res.json();
+
+  const features = data.features || [];
+  const coords = [];
+  let time = 0, dist = 0;
+
+  if (features[0] && features[0].properties) {
+    time = features[0].properties.totalTime || 0;
+    dist = features[0].properties.totalDistance || 0;
+  }
+  features.forEach(f => {
+    if (f.geometry.type === 'LineString') {
+      f.geometry.coordinates.forEach(c => coords.push([c[1], c[0]]));
+    }
+  });
+  return { coords, time, dist };
+}
+
+function distKm(a, b) {
+  return calcDist(a.lat, a.lng, b.lat, b.lng) / 1000;
+}
+
+// 최근접 이웃 알고리즘으로 정류장 순서 정렬 (캠퍼스 기준)
+function nearestNeighborSort(stops) {
+  if (stops.length <= 1) return stops;
+  const campus = { lat: CAMPUS.lat, lng: CAMPUS.lng };
+  const remaining = [...stops];
+  const sorted = [];
+  let current = campus;
+  while (remaining.length) {
+    let minDist = Infinity, minIdx = 0;
+    remaining.forEach((s, i) => {
+      const d = distKm(current, s);
+      if (d < minDist) { minDist = d; minIdx = i; }
+    });
+    sorted.push(remaining[minIdx]);
+    current = remaining[minIdx];
+    remaining.splice(minIdx, 1);
+  }
+  return sorted;
+}
+
+// 클러스터 내 총 이동거리 계산
+function clusterTotalDist(stops) {
+  if (stops.length < 2) return 0;
+  const sorted = nearestNeighborSort(stops);
+  let d = 0;
+  for (let i = 0; i < sorted.length - 1; i++) d += distKm(sorted[i], sorted[i+1]);
+  d += distKm(sorted[sorted.length-1], { lat: CAMPUS.lat, lng: CAMPUS.lng });
+  return d;
+}
+
+// K-means 클러스터링 (지리 기반)
+function kMeansClusters(stops, k, maxIter = 50) {
+  if (stops.length <= k) {
+    // 정류장이 호차 수보다 적으면 1:1 배분
+    return stops.map((s, i) => [s]);
+  }
+
+  // 초기 센트로이드: 캠퍼스에서 가장 먼 k개 선택 (spread init)
+  const campus = { lat: CAMPUS.lat, lng: CAMPUS.lng };
+  const byDist = [...stops].sort((a,b) => distKm(b, campus) - distKm(a, campus));
+  let centroids = [];
+  // K-means++ 스타일 초기화
+  centroids.push(byDist[0]);
+  while (centroids.length < k) {
+    let maxMinDist = -1, next = null;
+    stops.forEach(s => {
+      const minD = Math.min(...centroids.map(c => distKm(s, c)));
+      if (minD > maxMinDist) { maxMinDist = minD; next = s; }
+    });
+    centroids.push(next);
+  }
+
+  let clusters = Array.from({length: k}, () => []);
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    clusters = Array.from({length: k}, () => []);
+    stops.forEach(s => {
+      let minD = Infinity, ci = 0;
+      centroids.forEach((c, i) => { const d = distKm(s, c); if (d < minD) { minD = d; ci = i; } });
+      clusters[ci].push(s);
+    });
+    // Recompute centroids
+    const newCentroids = clusters.map((cl, i) => {
+      if (!cl.length) return centroids[i];
+      return { lat: cl.reduce((s,p) => s+p.lat, 0)/cl.length, lng: cl.reduce((s,p) => s+p.lng, 0)/cl.length };
+    });
+    if (centroids.every((c,i) => distKm(c, newCentroids[i]) < 0.01)) break;
+    centroids = newCentroids;
+  }
+  return clusters.filter(c => c.length > 0);
+}
+
+// 학생수 균등 재배분 (클러스터 간 스왑)
+function balanceByStudents(clusters, targetPerBus) {
+  let improved = true;
+  let maxIter = 100;
+  while (improved && maxIter-- > 0) {
+    improved = false;
+    for (let i = 0; i < clusters.length; i++) {
+      for (let j = i+1; j < clusters.length; j++) {
+        const si = clusters[i].reduce((s,p) => s+p.studentCount, 0);
+        const sj = clusters[j].reduce((s,p) => s+p.studentCount, 0);
+        if (Math.abs(si - sj) < 2) continue;
+        // Try swapping one stop from larger to smaller
+        const [large, small, li, si2] = si > sj ? [clusters[i], clusters[j], i, j] : [clusters[j], clusters[i], j, i];
+        const sl = large.reduce((s,p) => s+p.studentCount, 0);
+        const ss = small.reduce((s,p) => s+p.studentCount, 0);
+        // Find best stop to move from large to small
+        let bestGain = 0, bestIdx = -1;
+        large.forEach((stop, idx) => {
+          const newLarge = sl - stop.studentCount;
+          const newSmall = ss + stop.studentCount;
+          const gain = Math.abs(sl - ss) - Math.abs(newLarge - newSmall);
+          if (gain > bestGain) { bestGain = gain; bestIdx = idx; }
+        });
+        if (bestIdx >= 0) {
+          small.push(large[bestIdx]);
+          large.splice(bestIdx, 1);
+          improved = true;
+        }
+      }
+    }
+  }
+  return clusters;
+}
+
+function runOptimizer() {
+  const k       = parseInt(document.getElementById('opt-buscount').value);
+  const mode    = document.getElementById('opt-mode').value;
+  const timeFilter = document.getElementById('opt-time').value;
+
+  // Collect all stops for current yoil
+  const allBuses = ALL_ROUTES[currentYoil] || {};
+  let allStops = [];
+  Object.entries(allBuses).forEach(([bus, stops]) => {
+    stops.forEach(stop => {
+      if (!stop.lat) return;
+      let include = true;
+      if (timeFilter === 'board')  include = stop.boardTime  && stop.boardTime  < '12:00';
+      if (timeFilter === 'alight') include = stop.alightTime && stop.alightTime > '12:00';
+      if (include) {
+        allStops.push({ ...stop, studentCount: stop.students.length, origBus: bus });
+      }
+    });
+  });
+
+  if (allStops.length < k) {
+    document.getElementById('opt-result').style.display = 'block';
+    document.getElementById('opt-result').innerHTML = `<div style="color:var(--danger);padding:12px">정류장 수(${allStops.length})가 호차 수(${k})보다 적습니다.</div>`;
+    return;
+  }
+
+  // Run clustering
+  let clusters = kMeansClusters(allStops, k);
+
+  // Rebalance based on mode
+  if (mode === 'equal' || mode === 'balanced') {
+    const totalStudents = allStops.reduce((s,p) => s+p.studentCount, 0);
+    const target = totalStudents / k;
+    clusters = balanceByStudents(clusters, target);
+  }
+
+  // Sort stops within each cluster by nearest-neighbor
+  const palette = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#84cc16','#ec4899'];
+  const busNums = Object.keys(allBuses).sort((a,b)=>parseInt(a)-parseInt(b));
+
+  const result = clusters.map((cl, i) => {
+    const sorted = nearestNeighborSort(cl);
+    const totalDist = clusterTotalDist(sorted);
+    const totalStudents = cl.reduce((s,p) => s+p.studentCount, 0);
+    const busNum = busNums[i] || String(i+1);
+    const color = BUS_COLORS[busNum] || palette[i % palette.length];
+    return { busNum, color, stops: sorted, totalDist, totalStudents };
+  });
+
+  // Render result
+  const before = Object.entries(allBuses).map(([bus, stops]) => {
+    const filtered = stops.filter(s => {
+      if (!s.lat) return false;
+      if (timeFilter === 'board')  return s.boardTime  && s.boardTime  < '12:00';
+      if (timeFilter === 'alight') return s.alightTime && s.alightTime > '12:00';
+      return true;
+    });
+    const dist = clusterTotalDist(filtered);
+    return { bus, stops: filtered, stopCount: filtered.length, students: filtered.reduce((a,s) => a+s.students.length, 0), dist };
+  });
+
+  _optimizedResult = { result, timeFilter, before };
+  const beforeTotalDist = before.reduce((a,b) => a+b.dist, 0);
+  const afterTotalDist  = result.reduce((a,b) => a+b.totalDist, 0);
+  const improvement     = ((beforeTotalDist - afterTotalDist) / beforeTotalDist * 100).toFixed(1);
+
+  document.getElementById('opt-result').style.display = 'block';
+  document.getElementById('btn-apply-opt').style.display = 'inline-flex';
+
+  document.getElementById('opt-result').innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--muted)">최적화 전 총거리</div>
+        <div style="font-family:JetBrains Mono,monospace;font-size:20px;font-weight:800;color:var(--muted)">${beforeTotalDist.toFixed(1)}km</div>
+      </div>
+      <div style="display:flex;align-items:center;font-size:20px">→</div>
+      <div style="flex:1;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--success)">최적화 후 총거리</div>
+        <div style="font-family:JetBrains Mono,monospace;font-size:20px;font-weight:800;color:var(--success)">${afterTotalDist.toFixed(1)}km</div>
+      </div>
+      <div style="flex:1;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--accent)">거리 단축</div>
+        <div style="font-family:JetBrains Mono,monospace;font-size:20px;font-weight:800;color:var(--accent)">${improvement}%</div>
+      </div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">최적화 결과 — 호차별 배분</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      ${result.map(r => `
+        <div style="background:var(--surface2);border:1px solid ${r.color}44;border-radius:8px;padding:10px;border-left:3px solid ${r.color}">
+          <div style="font-weight:700;color:${r.color};font-size:13px;margin-bottom:6px">${r.busNum}호차</div>
+          <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:6px">
+            <span>📍 ${r.stops.length}개</span>
+            <span>👥 ${r.totalStudents}명</span>
+            <span>📏 ${r.totalDist.toFixed(1)}km</span>
+          </div>
+          <div style="font-size:11px;line-height:1.6;color:var(--text)">
+            ${r.stops.map((s,i) => `<span style="display:inline-block;background:${r.color}18;border-radius:3px;padding:0 5px;margin:1px">${i+1}. ${s.place.replace(/\n/g,' ')}</span>`).join(' ')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">현재 vs 최적화 비교</div>
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;padding:8px 10px;background:var(--surface2);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">
+        <span>호차</span><span>정류장</span><span>학생수</span><span>현재거리</span><span>최적화거리</span>
+      </div>
+      ${result.map((r, i) => {
+        const b = before.find(x => x.bus === r.busNum) || before[i] || {};
+        return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;padding:8px 10px;border-top:1px solid var(--border)">
+          <span style="color:${r.color};font-weight:700">${r.busNum}호</span>
+          <span>${r.stops.length}개</span>
+          <span>${r.totalStudents}명</span>
+          <span style="color:var(--muted)">${b.dist ? b.dist.toFixed(1)+'km' : '—'}</span>
+          <span style="color:var(--success);font-weight:600">${r.totalDist.toFixed(1)}km</span>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:10px;margin-top:12px;font-size:11px;color:var(--warn)">
+      ⚠️ 이 결과는 직선거리 기반 추정입니다. 적용 후 T맵 경로로 실제 소요시간을 확인하세요.<br>
+      "✅ 적용" 버튼을 누르면 현재 배분이 최적화 결과로 교체됩니다. (되돌리기 불가)
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="closeModal('optimizer'); previewOptimizationOnMap(_optimizedResult.result)" class="btn" style="flex:1;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3)">🗺 최적화 경로 보기</button>
+      <button onclick="closeModal('optimizer'); previewCompareOnMap()" class="btn" style="flex:1;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">⚖️ 원본 vs 최적화 비교</button>
+    </div>
+  `;
+
+  // Preview on map
+  previewOptimizationOnMap(result);
+}
+
+
+
+// ════════════════════════════════════════════
+// UI 초기화
+// ════════════════════════════════════════════
+async function init() {
+  // 1. Firebase 로드 시도
+  const fbOk = await loadFromFirestore();
+  if (!fbOk) {
+    // 2. 구글 시트 시도
+    await fetchSheetData();
+  } else {
+    setSyncStatus('ok', '클라우드 연동');
+    ROUTES = ALL_ROUTES[currentYoil] || {};
+  }
+  setupYoilTabs();
+  setupBusTabs();
+  initMap();
+  refreshAll();
+  startRealtimeSync();
+}
+
+function setupYoilTabs() {
+  const el = document.getElementById('yoilTabs');
+  el.innerHTML = YOIL_LIST.map(y =>
+    `<div class="ytab${y===currentYoil?' active':''}" onclick="selectYoil('${y}')">${y}</div>`
+  ).join('');
+}
+
+function setupBusTabs() {
+  const buses = Object.keys(ROUTES).sort();
+  if (!buses.includes(currentBus)) currentBus = buses[0] || '1';
+  const el = document.getElementById('busTabs');
+  el.innerHTML = buses.map(b =>
+    `<div class="btab${b===currentBus?' active':''}" id="btab-${b}"
+      style="${b===currentBus?`background:${BUS_COLORS[b]||'#888'};color:#fff`:''}"
+      onclick="selectBus('${b}')">${BUS_NAMES[b]||b+'호차'}</div>`
+  ).join('');
+}
+
+function selectYoil(y) {
+  currentYoil = y;
+  ROUTES = ALL_ROUTES[currentYoil] || {};
+  tmapRouteCache = {};
+  setupYoilTabs();
+  setupBusTabs();
+  refreshAll();
+}
+
+function selectBus(b) {
+  currentBus = b;
+  tmapRouteCache = {};
+  setupBusTabs();
+  refreshAll();
+}
+
+function setListMode(mode, el) {
+  listMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  renderStopList();
+}
+
+function toggleMode() {
+  currentMode = currentMode === 'board' ? 'alight' : 'board';
+  document.getElementById('btnMode').textContent = currentMode === 'board' ? '🌅 등원' : '🌆 하원';
+  document.getElementById('btnMode').classList.toggle('active', currentMode === 'alight');
+  renderMap();
+}
+
+function showPage(page) {
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.getElementById('nav-' + page).classList.add('active');
+  if (page === 'map') { setTimeout(() => map && map.invalidateSize(), 100); renderMap(); }
+  if (page === 'list') renderStopList();
+  if (page === 'opt') renderOptPage();
+  if (page === 'settings') renderSettingsPage();
+}
+
+function refreshAll() {
+  setupBusTabs();
+  if (currentPage === 'map') renderMap();
+  if (currentPage === 'list') renderStopList();
+}
+
+// ════════════════════════════════════════════
+// 지도
+// ════════════════════════════════════════════
+function initMap() {
+  const VWORLD_KEY = '44902864-CE12-346A-8F22-FFE9B932713D';
+  map = L.map('map', { zoomControl: false }).setView([CAMPUS.lat, CAMPUS.lng], 13);
+  L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`, {
+    attribution: '© Vworld', maxZoom: 19
+  }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  campusMarker = L.marker([CAMPUS.lat, CAMPUS.lng], {
+    icon: L.divIcon({
+      html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)">🏫</div>',
+      className:'', iconSize:[32,32], iconAnchor:[16,16]
+    })
+  }).addTo(map).bindPopup('대치캠퍼스');
+}
+
+function getFilteredStops() {
+  const route = (ROUTES[currentBus] || []).filter(s => s.lat);
+  if (currentMode === 'board') return route.filter(s => s.boardTime && s.boardTime < '12:00');
+  return route.filter(s => s.alightTime && s.alightTime > '12:00');
+}
+
+function renderMap() {
+  if (!map) return;
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+
+  const color = BUS_COLORS[currentBus] || '#888';
+  const stops = getFilteredStops();
+  const allPts = [...stops, { lat: CAMPUS.lat, lng: CAMPUS.lng, place: '대치캠퍼스', isCampus: true }];
+
+  stops.forEach((s, i) => {
+    const marker = L.marker([s.lat, s.lng], {
+      icon: L.divIcon({
+        html: `<div style="background:${color};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);cursor:pointer">${i+1}</div>`,
+        className:'', iconSize:[28,28], iconAnchor:[14,14]
+      })
+    }).addTo(map);
+    marker.on('click', () => openStopSheet(i));
+    markers.push(marker);
+  });
+
+  if (allPts.length > 1) {
+    const latlngs = allPts.map(s => [s.lat, s.lng]);
+    routeLine = L.polyline(latlngs, { color, weight: 3, opacity: 0.6, dashArray: '6 4' }).addTo(map);
+  }
+
+  if (stops.length > 0) {
+    const bounds = L.latLngBounds(stops.map(s => [s.lat, s.lng]));
+    bounds.extend([CAMPUS.lat, CAMPUS.lng]);
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }
+
+  // T맵 캐시 있으면 덮어그리기
+  const cacheKey = currentBus + '_' + currentMode;
+  if (tmapRouteCache[cacheKey]) drawTmapRoute(cacheKey);
+}
+
+function drawTmapRoute(cacheKey) {
+  const cache = tmapRouteCache[cacheKey];
+  if (!cache || !map) return;
+  if (tmapRouteLayer) { map.removeLayer(tmapRouteLayer); }
+  const color = BUS_COLORS[currentBus] || '#888';
+  tmapRouteLayer = L.polyline(cache.coords, { color, weight: 5, opacity: 0.85 }).addTo(map);
+  updateMapSummary(cache.totalTime, cache.totalDist, cache.stops.length);
+}
+
+function updateMapSummary(totalTime, totalDist, stopCount) {
+  document.getElementById('mapSummary').style.display = 'flex';
+  document.getElementById('sumTime').textContent = Math.round(totalTime/60) + '분';
+  document.getElementById('sumDist').textContent = (totalDist/1000).toFixed(1) + 'km';
+  document.getElementById('sumStops').textContent = stopCount;
+}
+
+async function loadTmapRoute() {
+  const cacheKey = currentBus + '_' + currentMode;
+  if (tmapRouteCache[cacheKey]) { drawTmapRoute(cacheKey); return; }
+  const stops = getFilteredStops();
+  const allPts = [...stops, { lat: CAMPUS.lat, lng: CAMPUS.lng, place: '대치캠퍼스' }];
+  if (allPts.length < 2) { showToast('정류장이 부족합니다'); return; }
+  showToast('T맵 경로 계산 중...');
+  try {
+    const allCoords = []; let totalTime = 0, totalDist = 0;
+    for (let i = 0; i < allPts.length - 1; i++) {
+      const seg = await fetchSegment(allPts[i], allPts[i+1]);
+      allCoords.push(...seg.coords);
+      totalTime += seg.time; totalDist += seg.dist;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    tmapRouteCache[cacheKey] = { coords: allCoords, totalTime, totalDist, stops };
+    drawTmapRoute(cacheKey);
+    showToast('경로 로드 완료');
+  } catch(e) { showToast('T맵 오류: ' + e.message); }
+}
+
+function toggleAllRoutes() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  if (tmapRouteLayer) { map.removeLayer(tmapRouteLayer); tmapRouteLayer = null; }
+  const buses = Object.keys(ROUTES);
+  const allBounds = [];
+  buses.forEach(bus => {
+    const color = BUS_COLORS[bus] || '#888';
+    const route = (ROUTES[bus] || []).filter(s => s.lat);
+    route.forEach((s, i) => {
+      const m = L.marker([s.lat, s.lng], {
+        icon: L.divIcon({
+          html: `<div style="background:${color};color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1.5px solid #fff">${i+1}</div>`,
+          className:'', iconSize:[22,22], iconAnchor:[11,11]
+        })
+      }).addTo(map);
+      markers.push(m);
+      allBounds.push([s.lat, s.lng]);
+    });
+    if (route.length > 1) {
+      const latlngs = [...route.map(s => [s.lat, s.lng]), [CAMPUS.lat, CAMPUS.lng]];
+      L.polyline(latlngs, { color, weight: 3, opacity: 0.6 }).addTo(map);
+    }
+  });
+  if (allBounds.length > 0) map.fitBounds(L.latLngBounds(allBounds), { padding: [40, 40] });
+}
+
+// ════════════════════════════════════════════
+// 정류장 목록
+// ════════════════════════════════════════════
+function renderStopList() {
+  const route = ROUTES[currentBus] || [];
+  const color = BUS_COLORS[currentBus] || '#888';
+  let filtered = [...route];
+  if (listMode === 'board') filtered = filtered.filter(s => s.boardTime && s.boardTime < '12:00');
+  else filtered = filtered.filter(s => s.alightTime && s.alightTime > '12:00');
+
+  const cont = document.getElementById('stopListContainer');
+  if (!filtered.length) {
+    cont.innerHTML = '<div class="empty-state">해당 시간대의 정류장이 없습니다</div>';
+    return;
+  }
+  cont.innerHTML = filtered.map((s, i) => {
+    const time = listMode === 'board' ? s.boardTime : s.alightTime;
+    const students = s.students || [];
+    return `<div class="stop-card" onclick="openStopSheet(${route.indexOf(s)})">
+      <div class="stop-card-header">
+        <div class="stop-num" style="background:${color}22;color:${color}">${i+1}</div>
+        <div class="stop-name">${s.place.replace(/\n/g,' ')}</div>
+        <div class="stop-time">${time||'—'}</div>
+      </div>
+      ${s.detail ? `<div class="stop-detail">${s.detail}</div>` : ''}
+      ${students.length ? `<div class="stop-students">${students.map(st=>`<span class="student-chip">${st.name}</span>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════
+// 정류장 상세 바텀시트
+// ════════════════════════════════════════════
+function openStopSheet(idx) {
+  const route = ROUTES[currentBus] || [];
+  const s = route[idx];
+  if (!s) return;
+  const color = BUS_COLORS[currentBus] || '#888';
+  document.getElementById('bsTitle').textContent = s.place.replace(/\n/g,' ');
+  document.getElementById('bsSubtitle').textContent = `${currentBus}호차 · ${currentYoil}`;
+  const students = s.students || [];
+  document.getElementById('bsBody').innerHTML = `
+    <div class="bs-time-row">
+      <div class="bs-time-box">
+        <div class="bs-time-label">🌅 등원</div>
+        <div class="bs-time-val">${s.boardTime||'—'}</div>
+      </div>
+      <div class="bs-time-box">
+        <div class="bs-time-label">🌆 하원</div>
+        <div class="bs-time-val">${s.alightTime||'—'}</div>
+      </div>
+    </div>
+    ${s.detail ? `<div class="bs-section"><div class="bs-label">주소</div><div class="bs-value">${s.detail}</div></div>` : ''}
+    ${students.length ? `<div class="bs-section">
+      <div class="bs-label">탑승 학생 ${students.length}명</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${students.map(st=>`<span class="student-chip">${st.name}</span>`).join('')}
+      </div>
+    </div>` : ''}
+    <div class="bs-action-row">
+      <button class="bs-btn bs-btn-ghost" onclick="openStopEdit(${idx})">✏️ 편집</button>
+      <button class="bs-btn bs-btn-ghost" onclick="moveStopUp(${idx})">▲</button>
+      <button class="bs-btn bs-btn-ghost" onclick="moveStopDown(${idx})">▼</button>
+    </div>
+    <div class="bs-action-row">
+      <button class="bs-btn bs-btn-primary" onclick="openMaps(${s.lat},${s.lng})">🗺 지도 열기</button>
+      <button class="bs-btn bs-btn-danger" onclick="deleteStop(${idx})">삭제</button>
+    </div>
+    ${s.lat ? `<div style="margin-top:8px;font-size:11px;color:var(--muted);text-align:center">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>` : ''}
+  `;
+  document.getElementById('stopSheet').classList.add('open');
+}
+
+function closeStopSheet(e) {
+  if (e && e.target !== document.getElementById('stopSheet')) return;
+  document.getElementById('stopSheet').classList.remove('open');
+}
+
+function openMaps(lat, lng) {
+  window.open(`https://map.kakao.com/link/map/${lat},${lng}`, '_blank');
+}
+
+function moveStopUp(idx) {
+  const route = ROUTES[currentBus] || [];
+  if (idx <= 0) return;
+  [route[idx-1], route[idx]] = [route[idx], route[idx-1]];
+  saveToFirestore();
+  refreshAll();
+  document.getElementById('stopSheet').classList.remove('open');
+  showToast('순서 변경됨');
+}
+
+function moveStopDown(idx) {
+  const route = ROUTES[currentBus] || [];
+  if (idx >= route.length - 1) return;
+  [route[idx], route[idx+1]] = [route[idx+1], route[idx]];
+  saveToFirestore();
+  refreshAll();
+  document.getElementById('stopSheet').classList.remove('open');
+  showToast('순서 변경됨');
+}
+
+function deleteStop(idx) {
+  const route = ROUTES[currentBus] || [];
+  const s = route[idx];
+  if (!confirm(`"${s.place}" 정류장을 삭제할까요?`)) return;
+  route.splice(idx, 1);
+  saveToFirestore();
+  refreshAll();
+  document.getElementById('stopSheet').classList.remove('open');
+  showToast('삭제됨');
+}
+
+// ════════════════════════════════════════════
+// 정류장 편집
+// ════════════════════════════════════════════
+function openStopEdit(idx) {
+  const s = (ROUTES[currentBus] || [])[idx];
+  if (!s) return;
+  editingStopIdx = idx;
+  editingBus = currentBus;
+  document.getElementById('editPlace').value = s.place || '';
+  document.getElementById('editDetail').value = s.detail || '';
+  document.getElementById('editBoard').value = s.boardTime || '';
+  document.getElementById('editAlight').value = s.alightTime || '';
+  document.getElementById('editLat').value = s.lat || '';
+  document.getElementById('editLng').value = s.lng || '';
+  document.getElementById('stopSheet').classList.remove('open');
+  document.getElementById('editOverlay').classList.add('open');
+}
+
+function closeEditOverlay(e) {
+  if (e && e.target !== document.getElementById('editOverlay')) return;
+  document.getElementById('editOverlay').classList.remove('open');
+}
+
+function saveStopEdit() {
+  const route = ROUTES[editingBus] || [];
+  const s = route[editingStopIdx];
+  if (!s) return;
+  s.place = document.getElementById('editPlace').value;
+  s.detail = document.getElementById('editDetail').value;
+  s.boardTime = document.getElementById('editBoard').value || null;
+  s.alightTime = document.getElementById('editAlight').value || null;
+  s.lat = parseFloat(document.getElementById('editLat').value) || s.lat;
+  s.lng = parseFloat(document.getElementById('editLng').value) || s.lng;
+  saveToFirestore();
+  refreshAll();
+  document.getElementById('editOverlay').classList.remove('open');
+  showToast('저장됨');
+}
+
+// ════════════════════════════════════════════
+// 소요시간 계산
+// ════════════════════════════════════════════
+async function calcRouteTime() {
+  const stops = getFilteredStops();
+  const allPts = [...stops, { lat: CAMPUS.lat, lng: CAMPUS.lng, place: '대치캠퍼스' }];
+  if (allPts.length < 2) { showToast('정류장이 부족합니다'); return; }
+  const cacheKey = currentBus + '_' + currentMode;
+  const color = BUS_COLORS[currentBus] || '#888';
+  if (tmapRouteCache[cacheKey]) {
+    const c = tmapRouteCache[cacheKey];
+    showTimeModal(Math.round(c.totalTime/60), (c.totalDist/1000).toFixed(1), stops.length, color, true);
+    return;
+  }
+  showToast('소요시간 계산 중...');
+  try {
+    let totalTime = 0, totalDist = 0;
+    const allCoords = [], segs = [];
+    for (let i = 0; i < allPts.length - 1; i++) {
+      const seg = await fetchSegment(allPts[i], allPts[i+1]);
+      allCoords.push(...seg.coords);
+      totalTime += seg.time; totalDist += seg.dist;
+      segs.push({ from: allPts[i].place, to: allPts[i+1].place, time: seg.time, dist: seg.dist });
+      await new Promise(r => setTimeout(r, 100));
+    }
+    tmapRouteCache[cacheKey] = { coords: allCoords, totalTime, totalDist, stops };
+    drawTmapRoute(cacheKey);
+    showTimeModal(Math.round(totalTime/60), (totalDist/1000).toFixed(1), stops.length, color, true, segs);
+  } catch(e) { showToast('오류: ' + e.message); }
+}
+
+function showTimeModal(totalMin, totalKm, stopCount, color, isTmap, segs) {
+  const cont = document.getElementById('timeModalContent');
+  cont.innerHTML = `
+    <div style="padding:0 0 16px">
+      <div style="font-size:16px;font-weight:800;color:${color};margin-bottom:4px">${currentBus}호차 · ${currentYoil}</div>
+      <div style="font-size:12px;color:var(--muted)">${currentMode==='board'?'등원':'하원'} 소요시간 분석
+        <span style="background:rgba(251,191,36,.15);color:#fbbf24;font-size:10px;padding:1px 8px;border-radius:10px;margin-left:6px">${isTmap?'🛣 T맵':'직선거리'}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <div class="bs-time-box" style="${isTmap?'border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08)':''}">
+        <div class="bs-time-label" style="${isTmap?'color:#fbbf24':''}">소요시간</div>
+        <div class="bs-time-val" style="${isTmap?'color:#fbbf24':''}">${totalMin}분</div>
+      </div>
+      <div class="bs-time-box">
+        <div class="bs-time-label">도로거리</div>
+        <div class="bs-time-val">${totalKm}km</div>
+      </div>
+      <div class="bs-time-box">
+        <div class="bs-time-label">정류장</div>
+        <div class="bs-time-val" style="color:${color}">${stopCount}</div>
+      </div>
+    </div>
+    ${segs ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">구간별</div>
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      ${segs.map((seg,i) => `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;${i%2?'background:var(--surface2)':''}">
+        <div style="width:20px;height:20px;border-radius:50%;background:${color}22;color:${color};font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
+        <div style="flex:1;min-width:0;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${seg.from.replace(/\n/g,' ')} → ${seg.to.replace(/\n/g,' ')}</div>
+        <div style="font-family:JetBrains Mono,monospace;color:var(--warn);font-size:12px;font-weight:700;white-space:nowrap">${Math.round(seg.time/60)}분</div>
+        <div style="font-family:JetBrains Mono,monospace;color:var(--muted);font-size:10px;white-space:nowrap">${(seg.dist/1000).toFixed(1)}km</div>
+      </div>`).join('')}
+    </div>` : ''}
+    <button class="big-btn big-btn-ghost" style="margin-top:14px" onclick="closeTimeModal()">닫기</button>
+  `;
+  document.getElementById('timeModal').classList.add('open');
+}
+
+function closeTimeModal(e) {
+  if (e && e.target !== document.getElementById('timeModal')) return;
+  document.getElementById('timeModal').classList.remove('open');
+}
+
+// ════════════════════════════════════════════
+// 최적화 페이지
+// ════════════════════════════════════════════
+let optResult = null;
+
+function renderOptPage() {
+  const buses = Object.keys(ROUTES);
+  document.getElementById('optContainer').innerHTML = `
+    <div class="opt-section">
+      <div class="opt-title">⚡ 노선 최적화</div>
+      <div class="opt-row">
+        <div class="opt-label">최적화 기준</div>
+      </div>
+      <select class="field-select" id="optMode" style="margin-bottom:10px">
+        <option value="dist">📏 거리 최소화</option>
+        <option value="balanced">⚖️ 학생수 균등 배분</option>
+        <option value="balance_adjust">🔄 균형 조정 (추천)</option>
+      </select>
+      <div class="opt-row">
+        <div class="opt-label">호차 수</div>
+        <select class="field-select" id="optBusCount" style="width:auto">
+          ${[-2,-1,0,1,2].map(d => {
+            const n = buses.length + d;
+            if (n < 1) return '';
+            return `<option value="${n}" ${d===0?'selected':''}>${n}대${d===0?' (현재)':d<0?` (${d})`:` (+${d})`}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <button class="big-btn big-btn-primary" onclick="runOptMobile()">🚀 최적화 실행</button>
+    </div>
+    <div id="optResults"></div>
+  `;
+}
+
+async function runOptMobile() {
+  const btn = document.querySelector('.big-btn-primary');
+  btn.disabled = true;
+  btn.textContent = '⟳ 계산 중...';
+  const mode = document.getElementById('optMode').value;
+  const k = parseInt(document.getElementById('optBusCount').value);
+  try {
+    optResult = runOptimizerMobile(mode, k);
+    renderOptResults(optResult);
+  } catch(e) {
+    showToast('오류: ' + e.message);
+    console.error(e);
+  }
+  btn.disabled = false;
+  btn.textContent = '🚀 최적화 실행';
+}
+
+function runOptimizerMobile(mode, k) {
+  const allBuses = ALL_ROUTES[currentYoil] || {};
+  let allStops = [];
+  Object.entries(allBuses).forEach(([bus, stops]) => {
+    stops.forEach(stop => {
+      if (!stop.lat) return;
+      allStops.push({ ...stop, studentCount: (stop.students||[]).length, origBus: bus });
+    });
+  });
+  if (allStops.length < k) return { message: `정류장 수(${allStops.length})가 호차 수(${k})보다 적습니다.` };
+
+  let clusters = kMeansClusters(allStops, k);
+  if (mode === 'balanced' || mode === 'balance_adjust') {
+    const totalStudents = allStops.reduce((s,p) => s+p.studentCount, 0);
+    clusters = balanceByStudents(clusters, totalStudents / k);
+  }
+
+  const busNums = Object.keys(allBuses).sort((a,b) => parseInt(a)-parseInt(b));
+  const palette = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#84cc16','#ec4899'];
+
+  const busesResult = {};
+  let totalNewDist = 0, totalOrigDist = 0;
+  clusters.forEach((cl, i) => {
+    const sorted = nearestNeighborSort(cl);
+    const busNum = busNums[i] || String(i+1);
+    busesResult[busNum] = sorted;
+    totalNewDist += clusterTotalDist(sorted);
+  });
+  Object.entries(allBuses).forEach(([bus, stops]) => {
+    totalOrigDist += clusterTotalDist(stops.filter(s => s.lat));
+  });
+
+  return { buses: busesResult, originalDist: totalOrigDist, newDist: totalNewDist };
+}
+
+function renderOptResults(result) {
+  if (!result) return;
+  const container = document.getElementById('optResults');
+  if (!result.buses) {
+    container.innerHTML = `<div class="opt-section"><div style="color:var(--muted);font-size:13px">${result.message||'결과 없음'}</div></div>`;
+    return;
+  }
+  const totalOrig = result.originalDist ? (result.originalDist/1000).toFixed(1) : '?';
+  const totalNew  = result.newDist ? (result.newDist/1000).toFixed(1) : '?';
+  const saving = result.originalDist && result.newDist ? ((1 - result.newDist/result.originalDist)*100).toFixed(1) : null;
+  container.innerHTML = `
+    <div class="opt-section">
+      <div class="opt-title">📊 최적화 결과</div>
+      ${saving ? `<div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:var(--success)">${saving}% 단축</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${totalOrig}km → ${totalNew}km</div>
+      </div>` : ''}
+      ${Object.entries(result.buses).map(([bus, stops]) => {
+        const color = BUS_COLORS[bus] || '#888';
+        const students = stops.reduce((a,s) => a + (s.students||[]).length, 0);
+        return `<div class="result-card">
+          <div class="result-bus" style="color:${color}">${BUS_NAMES[bus]||bus+'호차'}</div>
+          <div class="result-stat">${stops.length}개 정류장 · 학생 ${students}명</div>
+        </div>`;
+      }).join('')}
+      <button class="big-btn big-btn-success" style="margin-top:8px" onclick="applyOptMobile()">✅ 적용하기</button>
+      <button class="big-btn big-btn-ghost" onclick="previewOptMobile()">🗺 지도에서 미리보기</button>
+    </div>
+  `;
+}
+
+function applyOptMobile() {
+  if (!optResult || !optResult.buses) { showToast('최적화 결과 없음'); return; }
+  if (!confirm('최적화 결과를 적용하시겠습니까?\n현재 노선이 교체됩니다.')) return;
+  ALL_ROUTES[currentYoil] = {};
+  Object.entries(optResult.buses).forEach(([bus, stops]) => {
+    ALL_ROUTES[currentYoil][bus] = stops;
+  });
+  ROUTES = ALL_ROUTES[currentYoil];
+  saveToFirestore();
+  refreshAll();
+  showPage('map');
+  showToast('최적화 적용됨');
+}
+
+function previewOptMobile() {
+  if (!optResult || !optResult.buses) return;
+  showPage('map');
+  setTimeout(() => {
+    const allBounds = [];
+    Object.entries(optResult.buses).forEach(([bus, stops]) => {
+      const color = BUS_COLORS[bus] || '#888';
+      stops.filter(s => s.lat).forEach((s,i) => {
+        const m = L.marker([s.lat, s.lng], {
+          icon: L.divIcon({
+            html: `<div style="background:${color};color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1.5px solid #fff">${i+1}</div>`,
+            className:'', iconSize:[22,22], iconAnchor:[11,11]
+          })
+        }).addTo(map);
+        markers.push(m);
+        allBounds.push([s.lat, s.lng]);
+      });
+    });
+    if (allBounds.length > 0) map.fitBounds(L.latLngBounds(allBounds), { padding:[40,40] });
+  }, 300);
+}
+
+// ════════════════════════════════════════════
+// 설정 페이지
+// ════════════════════════════════════════════
+function renderSettingsPage() {
+  const cont = document.getElementById('settingsContainer');
+  const slotCountEl = document.createElement('div');
+  cont.innerHTML = `
+    <div style="padding:14px 16px 6px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">구글 시트 연동</div>
+    <div class="setting-section">
+      <div class="setting-row">
+        <div class="setting-icon">🔗</div>
+        <div class="setting-info">
+          <div class="setting-name">시트 ID</div>
+          <div class="setting-desc">${SHEET_ID ? SHEET_ID.substring(0,20)+'...' : '미설정'}</div>
+        </div>
+        <div class="setting-action" onclick="changeSheetId()">변경</div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-icon">📋</div>
+        <div class="setting-info">
+          <div class="setting-name">시트 탭</div>
+          <div class="setting-desc">${SHEET_NAME}</div>
+        </div>
+        <div class="setting-action" onclick="changeSheetName()">변경</div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-icon">↺</div>
+        <div class="setting-info">
+          <div class="setting-name">지금 새로고침</div>
+          <div class="setting-desc" id="syncStatusDesc">구글 시트에서 최신 데이터 로드</div>
+        </div>
+        <div class="setting-action" onclick="fetchSheetData()">실행</div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-icon">🔄</div>
+        <div class="setting-info">
+          <div class="setting-name">원본 복구</div>
+          <div class="setting-desc">구글 시트 데이터로 덮어쓰기</div>
+        </div>
+        <div class="setting-action" onclick="restoreFromSheet()">복구</div>
+      </div>
+    </div>
+
+    <div style="padding:14px 16px 6px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">슬롯 관리</div>
+    <div class="setting-section">
+      <div class="setting-row">
+        <div class="setting-icon">💾</div>
+        <div class="setting-info">
+          <div class="setting-name">현재 배분 저장</div>
+          <div class="setting-desc">이름을 지정해 슬롯으로 저장</div>
+        </div>
+        <div class="setting-action" onclick="saveSlotMobile()">저장</div>
+      </div>
+    </div>
+    <div id="slotListContainer"></div>
+
+    <div style="padding:14px 16px 6px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">정류장 추가</div>
+    <div class="setting-section">
+      <div class="setting-row">
+        <div class="setting-icon">➕</div>
+        <div class="setting-info">
+          <div class="setting-name">정류장 추가</div>
+          <div class="setting-desc">${currentBus}호차에 새 정류장 추가</div>
+        </div>
+        <div class="setting-action" onclick="addStopMobile()">추가</div>
+      </div>
+    </div>
+
+    <div style="padding:14px 16px 6px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">PC 버전</div>
+    <div class="setting-section">
+      <div class="setting-row" onclick="window.open('shuttle_admin.html','_blank')">
+        <div class="setting-icon">🖥</div>
+        <div class="setting-info">
+          <div class="setting-name">PC 버전 열기</div>
+          <div class="setting-desc">전체 기능이 포함된 데스크톱 버전</div>
+        </div>
+        <div class="setting-action">열기 →</div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  `;
+  loadSlotListMobile();
+}
+
+function changeSheetId() {
+  const id = prompt('구글 시트 ID를 입력하세요:', SHEET_ID);
+  if (id && id.trim()) { SHEET_ID = id.trim(); renderSettingsPage(); }
+}
+
+function changeSheetName() {
+  const name = prompt('시트 탭 이름을 입력하세요:', SHEET_NAME);
+  if (name && name.trim()) { SHEET_NAME = name.trim(); renderSettingsPage(); }
+}
+
+async function restoreFromSheet() {
+  if (!confirm('구글 시트에서 원본 데이터를 불러옵니다.\n현재 수정사항이 초기화됩니다.')) return;
+  await fetchSheetData();
+  showToast('원본 복구 완료');
+}
+
+async function saveSlotMobile() {
+  const name = prompt('슬롯 이름을 입력하세요 (예: 최적화_0414):');
+  if (!name || !name.trim()) return;
+  const slots = await getSavedSlotsFirestore();
+  const key = name.trim();
+  const keys = Object.keys(slots);
+  if (!slots[key] && keys.length >= 20) { alert('슬롯은 최대 20개까지 저장할 수 있습니다.'); return; }
+  if (slots[key] && !confirm(`"${key}" 슬롯이 이미 있습니다. 덮어쓸까요?`)) return;
+  slots[key] = { name: key, savedAt: new Date().toLocaleString('ko-KR'), routes: JSON.parse(JSON.stringify(ALL_ROUTES)), colors: JSON.parse(JSON.stringify(BUS_COLORS)) };
+  await saveSlotsFirestore(slots);
+  showToast(`"${key}" 저장됨`);
+  loadSlotListMobile();
+}
+
+async function loadSlotListMobile() {
+  const slots = await getSavedSlotsFirestore();
+  const keys = Object.keys(slots);
+  const cont = document.getElementById('slotListContainer');
+  if (!cont) return;
+  if (!keys.length) {
+    cont.innerHTML = '<div class="empty-state">저장된 슬롯 없음</div>';
+    return;
+  }
+  cont.innerHTML = `
+    <div style="padding:0 10px 4px;font-size:11px;color:var(--muted)">${keys.length}/20 슬롯 사용 중</div>
+    <div style="max-height:320px;overflow-y:auto">
+    ${keys.map(k => `<div class="slot-item">
+      <div>
+        <div class="slot-name">${k}</div>
+        <div class="slot-date">${slots[k].savedAt||''}</div>
+      </div>
+      <button class="slot-btn" style="background:rgba(59,130,246,.15);color:var(--accent);border:1px solid rgba(59,130,246,.3)" onclick="loadSlotMobile('${k}')">불러오기</button>
+      <button class="slot-btn" style="background:rgba(239,68,68,.15);color:var(--danger);border:1px solid rgba(239,68,68,.3)" onclick="deleteSlotMobile('${k}')">삭제</button>
+    </div>`).join('')}
+    </div>
+  `;
+}
+
+async function loadSlotMobile(key) {
+  const slots = await getSavedSlotsFirestore();
+  const slot = slots[key];
+  if (!slot) return;
+  if (!confirm(`"${slot.name}" 슬롯을 불러올까요?`)) return;
+  ALL_ROUTES = JSON.parse(JSON.stringify(slot.routes));
+  Object.assign(BUS_COLORS, slot.colors || {});
+  ROUTES = ALL_ROUTES[currentYoil] || {};
+  await saveToFirestore();
+  refreshAll();
+  showToast(`"${key}" 불러옴`);
+}
+
+async function deleteSlotMobile(key) {
+  if (!confirm(`"${key}" 슬롯을 삭제할까요?`)) return;
+  const slots = await getSavedSlotsFirestore();
+  delete slots[key];
+  await saveSlotsFirestore(slots);
+  loadSlotListMobile();
+  showToast('삭제됨');
+}
+
+function addStopMobile() {
+  editingStopIdx = null;
+  editingBus = currentBus;
+  document.getElementById('editPlace').value = '';
+  document.getElementById('editDetail').value = '';
+  document.getElementById('editBoard').value = '';
+  document.getElementById('editAlight').value = '';
+  document.getElementById('editLat').value = '';
+  document.getElementById('editLng').value = '';
+  document.getElementById('editOverlay').classList.add('open');
+  document.querySelector('.edit-title').textContent = '➕ 정류장 추가';
+}
+
+// 저장 시 신규 추가도 처리
+const _origSave = saveStopEdit;
+saveStopEdit = function() {
+  if (editingStopIdx === null) {
+    // 신규 추가
+    const bus = editingBus || currentBus;
+    if (!ALL_ROUTES[currentYoil]) ALL_ROUTES[currentYoil] = {};
+    if (!ALL_ROUTES[currentYoil][bus]) ALL_ROUTES[currentYoil][bus] = [];
+    ALL_ROUTES[currentYoil][bus].push({
+      place: document.getElementById('editPlace').value,
+      detail: document.getElementById('editDetail').value,
+      boardTime: document.getElementById('editBoard').value || null,
+      alightTime: document.getElementById('editAlight').value || null,
+      lat: parseFloat(document.getElementById('editLat').value) || null,
+      lng: parseFloat(document.getElementById('editLng').value) || null,
+      students: []
+    });
+    ROUTES = ALL_ROUTES[currentYoil];
+    saveToFirestore();
+    refreshAll();
+    document.getElementById('editOverlay').classList.remove('open');
+    document.querySelector('.edit-title').textContent = '✏️ 정류장 편집';
+    showToast('추가됨');
+  } else {
+    _origSave();
+  }
+};
+
+// ════════════════════════════════════════════
+// 유틸
+// ════════════════════════════════════════════
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ════════════════════════════════════════════
+// 시작
+// ════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
