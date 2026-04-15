@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>셔틀 노선 관리 시스템 — 대치캠퍼스</title>
+<title>셔틀 노선 관리 시스템</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
@@ -70,6 +70,53 @@
     border-radius: 4px;
     border: 1px solid var(--border);
   }
+  .campus-switcher {
+    cursor: pointer;
+    user-select: none;
+    transition: all .15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .campus-switcher:hover {
+    background: var(--surface);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  /* 캠퍼스 선택 드롭다운 */
+  .campus-dropdown {
+    position: absolute;
+    top: 52px;
+    left: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    z-index: 9999;
+    min-width: 200px;
+    overflow: hidden;
+    display: none;
+  }
+  .campus-dropdown.open { display: block; }
+  .campus-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background .12s;
+    font-size: 13px;
+  }
+  .campus-option:hover { background: var(--surface2); }
+  .campus-option.active { color: var(--accent); font-weight: 700; }
+  .campus-option .campus-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .campus-option .campus-info { flex: 1; }
+  .campus-option .campus-name { font-weight: 600; color: var(--text); }
+  .campus-option.active .campus-name { color: var(--accent); }
+  .campus-option .campus-sheet { font-size: 10px; color: var(--muted); margin-top: 1px; }
   .topbar-spacer { flex: 1; }
   .topbar-stats {
     display: flex;
@@ -462,73 +509,134 @@
   }
   .map-toolbar::-webkit-scrollbar { display: none; }
 
-  /* 호차 요약 영역 */
-  .map-bus-summary {
+  /* ── 툴바 정보 영역: 테이블형 ── */
+  :root {
+    --col-lbl: 52px;   /* 행 라벨 너비 (예측/T맵) */
+    --col-dat: 76px;   /* 데이터 컬럼 너비 (시간/거리/정류소) */
+    --row-h:   28px;   /* 데이터 행 높이 */
+    --hdr-h:   20px;   /* 헤더 행 높이 */
+  }
+
+  .map-info-area {
     display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 0 4px;
+    align-items: stretch;
     border-right: 1px solid var(--border);
     flex-shrink: 0;
   }
-  .map-bus-badge {
+
+  /* 호차 셀 */
+  .info-bus-cell {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 6px 12px;
-    min-width: 54px;
-    gap: 1px;
+    padding: 0 18px;
+    border-right: 1px solid var(--border);
+    gap: 3px;
+    min-width: 72px;
   }
-  .map-bus-badge .badge-num {
+  .info-bus-cell .bus-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: 800;
+    line-height: 1;
   }
-  .map-bus-badge .badge-info {
-    font-size: 9px;
+  .info-bus-cell .bus-sub {
+    font-size: 11px;
     color: var(--muted);
     font-family: 'JetBrains Mono', monospace;
     white-space: nowrap;
   }
 
-  /* 노선 소요시간 요약 */
-  .map-route-summary {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 0 4px;
-    border-right: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .map-stat-block {
+  /* 헤더+행 그리드 */
+  .info-grid {
     display: flex;
     flex-direction: column;
+  }
+  .info-grid-header {
+    display: flex;
+    height: var(--hdr-h);
+    border-bottom: 1px solid var(--border);
+  }
+  .info-grid-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  .info-row {
+    display: flex;
+    height: var(--row-h);
     align-items: center;
-    padding: 6px 10px;
-    gap: 1px;
   }
-  .map-stat-val {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--warn);
-    white-space: nowrap;
+  .info-row + .info-row {
+    border-top: 1px solid var(--border);
   }
-  .map-stat-val.blue { color: var(--accent2); }
-  .map-stat-val.dim  { color: var(--muted); }
-  .map-stat-lbl {
-    font-size: 9px;
-    color: var(--muted);
-    white-space: nowrap;
-    letter-spacing: .02em;
-  }
-  .map-stat-divider {
-    width: 1px;
-    height: 28px;
-    background: var(--border);
+  .info-row.tmap-row { display: none; }
+  .info-row.tmap-row.visible { display: flex; }
+
+  /* 헤더 셀 — 데이터 컬럼과 동일 너비, 라벨 컬럼 위 빈칸은 라벨 너비 */
+  .info-hcell {
+    width: var(--col-dat);
     flex-shrink: 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    border-right: 1px solid var(--border);
+    letter-spacing: .04em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
+  .info-hcell:last-child { border-right: none; }
+  /* 헤더 첫 셀은 라벨 컬럼 너비 */
+  .info-hcell.lbl-spacer {
+    width: var(--col-lbl);
+    min-width: var(--col-lbl);
+  }
+
+  /* 행 라벨 (예측/T맵) */
+  .info-row-label {
+    width: var(--col-lbl);
+    min-width: var(--col-lbl);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .info-row-label.tmap-label { color: #fbbf24; }
+
+  /* 데이터 셀 */
+  .info-cell {
+    width: var(--col-dat);
+    min-width: var(--col-dat);
+    flex-shrink: 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .info-cell:last-child { border-right: none; }
+  .info-cell.time-est  { color: var(--warn); }
+  .info-cell.dist-est  { color: var(--accent2); }
+  .info-cell.stop-cell { color: var(--text); }
+  .info-cell.tmap-time { color: #fbbf24; }
+  .info-cell.tmap-dist { color: #fbbf24; }
+
+  /* 하위 호환용 */
+  .map-bus-summary, .map-route-summary { display: none; }
+  .map-stat-block, .map-stat-val, .map-stat-lbl, .map-stat-divider {}
 
   /* 정보영역과 버튼영역 사이 스페이서 */
   .map-toolbar-spacer {
@@ -549,18 +657,18 @@
     border: none;
     border-left: 1px solid var(--border);
     color: var(--muted);
-    padding: 0 13px;
+    padding: 0 15px;
     height: 100%;
-    min-height: 44px;
-    font-size: 12px;
-    font-weight: 500;
+    min-height: 66px;
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
     font-family: 'Noto Sans KR', sans-serif;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
   }
   .map-btn:first-child { border-left: none; }
   .map-btn:hover { background: var(--surface2); color: var(--text); }
@@ -902,7 +1010,9 @@
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="topbar-logo">🚌 ShuttleOps</div>
-  <div class="topbar-campus">대치캠퍼스</div>
+  <div class="topbar-campus campus-switcher" id="campusSwitcher" onclick="openCampusSwitch()" title="캠퍼스 전환">
+    <span id="campusLabel">대치캠퍼스</span> <span style="font-size:9px;opacity:.6">▼</span>
+  </div>
   <div class="topbar-spacer"></div>
   <div style="display:flex;align-items:center;gap:8px;font-size:11px">
     <span id="syncStatus" style="color:var(--muted)">○ 내장 데이터 사용 중</span>
@@ -919,6 +1029,9 @@
 </div>
 
 <!-- MAIN -->
+<!-- 캠퍼스 전환 드롭다운 -->
+<div class="campus-dropdown" id="campusDropdown"></div>
+
 <div class="main">
 
   <!-- LEFT SIDEBAR -->
@@ -926,10 +1039,8 @@
     <div class="sidebar-header">
       <div class="yoil-tabs-wrap" id="yoilTabs"></div>
       <div class="bus-tabs-new" id="busTabs"></div>
-      <div class="mode-toggle">
-        <div class="mode-btn active" data-mode="board" onclick="setMode('board', this)">🟦 등원</div>
-        <div class="mode-btn" data-mode="alight" onclick="setMode('alight', this)">🟩 하원</div>
-        <div class="mode-btn" data-mode="all" onclick="setMode('all', this)">전체</div>
+      <div class="mode-toggle" style="justify-content:flex-start;padding:4px 2px">
+        <div class="mode-btn active" data-mode="board" style="cursor:default;opacity:1">🟦 등원 노선</div>
       </div>
       <div class="action-row">
         <button class="action-btn" onclick="openModal('addBus')">＋ 호차 추가</button>
@@ -946,29 +1057,43 @@
     <!-- 지도 위 툴바: 호차요약 + 소요시간 + 액션버튼 -->
     <div class="map-toolbar" id="mapToolbar">
 
-      <!-- ▌정보 영역 (좌측 고정) -->
-      <div class="map-bus-summary" id="mapBusSummary">
-        <div class="map-bus-badge" id="mapBusBadge">
-          <div class="badge-num" id="mapBusNum" style="color:var(--accent)">—호차</div>
-          <div class="badge-info" id="mapBusInfo">📍— · 👤—</div>
-        </div>
-      </div>
+      <!-- ▌정보 영역 (좌측 고정) — 테이블형 -->
+      <div class="map-info-area">
 
-      <div class="map-route-summary" id="mapRouteSummary">
-        <div class="map-stat-block">
-          <div class="map-stat-val" id="toolbarTime">—</div>
-          <div class="map-stat-lbl">소요시간</div>
+        <!-- 호차 셀 -->
+        <div class="info-bus-cell">
+          <div class="bus-label" id="mapBusNum" style="color:var(--accent)">—호</div>
+          <div class="bus-sub"   id="mapBusInfo">📍— · 👤—</div>
         </div>
-        <div class="map-stat-divider"></div>
-        <div class="map-stat-block">
-          <div class="map-stat-val blue" id="toolbarDist">—</div>
-          <div class="map-stat-lbl">도로거리</div>
+
+        <!-- 헤더 + 예측/T맵 행 -->
+        <div class="info-grid">
+          <!-- 헤더 -->
+          <div class="info-grid-header">
+            <div class="info-hcell lbl-spacer"></div>
+            <div class="info-hcell">시간</div>
+            <div class="info-hcell">거리</div>
+            <div class="info-hcell">정류소</div>
+          </div>
+          <!-- 바디 -->
+          <div class="info-grid-body">
+            <!-- 예측 행: 항상 표시 -->
+            <div class="info-row">
+              <div class="info-row-label">예측</div>
+              <div class="info-cell time-est" id="estTime">—</div>
+              <div class="info-cell dist-est" id="estDist">—</div>
+              <div class="info-cell stop-cell" id="estStops">—</div>
+            </div>
+            <!-- T맵 행: T맵 버튼 누르면 표시 -->
+            <div class="info-row tmap-row" id="tmapRow">
+              <div class="info-row-label tmap-label">T맵</div>
+              <div class="info-cell tmap-time" id="toolbarTime">—</div>
+              <div class="info-cell tmap-dist" id="toolbarDist">—</div>
+              <div class="info-cell stop-cell" id="toolbarStops" style="color:var(--muted)">—</div>
+            </div>
+          </div>
         </div>
-        <div class="map-stat-divider"></div>
-        <div class="map-stat-block">
-          <div class="map-stat-val dim" id="toolbarStops">—</div>
-          <div class="map-stat-lbl">정류장</div>
-        </div>
+
       </div>
 
       <!-- 스페이서: 정보↔버튼 분리 -->
@@ -1225,7 +1350,7 @@ const db = firebase.firestore();
 // Firestore 저장/불러오기
 async function saveToFirestore() {
   try {
-    await db.collection('shuttle').doc('routes').set({
+    await db.collection('shuttle').doc(getCampus().firestoreDoc).set({
       allRoutes: JSON.stringify(ALL_ROUTES),
       busColors: JSON.stringify(BUS_COLORS),
       updatedAt: new Date().toISOString()
@@ -1239,7 +1364,7 @@ async function saveToFirestore() {
 
 async function loadFromFirestore() {
   try {
-    const doc = await db.collection('shuttle').doc('routes').get();
+    const doc = await db.collection('shuttle').doc(getCampus().firestoreDoc).get();
     if (doc.exists) {
       const data = doc.data();
       const parsed = JSON.parse(data.allRoutes);
@@ -1275,7 +1400,7 @@ async function saveSlotsFirestore(slots) {
 
 // 실시간 변경 감지 — 다른 사람이 수정하면 자동 반영
 function startRealtimeSync() {
-  db.collection('shuttle').doc('routes').onSnapshot(doc => {
+  db.collection('shuttle').doc(getCampus().firestoreDoc).onSnapshot(doc => {
     if (!doc.exists) return;
     const data = doc.data();
     try {
@@ -1300,11 +1425,38 @@ function startRealtimeSync() {
 // =====================================================
 // 🗺 T맵 API 설정
 // =====================================================
-const TMAP_KEY = 'zjk2IP7f081TP7qHntyd03bwHt7k5lQXK384eZGi'; // ← 여기에 T맵 API 키 입력
+const TMAP_KEY = 'zjk2IP7f081TP7qHntyd03bwHt7k5lQXK384eZGi';
+
+// ── 캠퍼스 설정 ──
+const CAMPUS_LIST = {
+  '대치': {
+    name:      '대치캠퍼스',
+    sheetName: '대치',
+    lat:       37.5030,
+    lng:       127.0670,
+    addr:      '서울 강남구 영동대로 318',
+    color:     '#3b82f6',
+    firestoreDoc: 'routes',
+  },
+  '분당': {
+    name:      '분당캠퍼스',
+    sheetName: '분당',
+    lat:       37.36165,
+    lng:       127.11142,
+    addr:      '경기 성남시 분당구 성남대로 349 (시그마타워)',
+    color:     '#10b981',
+    firestoreDoc: 'routes_bundang',
+  },
+};
+
+let currentCampusKey = localStorage.getItem('campusKey') || '대치';
+
+// 현재 캠퍼스 설정 getter (항상 최신 캠퍼스 반영)
+function getCampus() { return CAMPUS_LIST[currentCampusKey]; }
 
 let SHEET_ID   = '1augGfF4LsrrJuqDozNar0s0dj0V5f7evDCoAGaLR6CI';
-let SHEET_NAME = '2026';    // ← 시트 탭 이름 (기본값: 2026)
-const SYNC_INTERVAL = 30;   // 자동 갱신 주기 (초), 0이면 수동만
+let SHEET_NAME = getCampus().sheetName;
+const SYNC_INTERVAL = 30;
 
 // =====================================================
 // 내장 폴백 데이터 (시트 미연결 시 자동 사용)
@@ -1326,7 +1478,8 @@ const BUS_COLORS = { '1': '#3b82f6', '3': '#10b981', '5': '#f59e0b', '6': '#8b5c
 const BUS_NAMES  = { '1': '1호차', '3': '3호차', '5': '5호차', '6': '6호차', '7': '7호차' };
 
 // CAMPUS LOCATION (대치캠퍼스 — 서울 강남구 영동대로 318)
-const CAMPUS = { lat: 37.5030, lng: 127.0670, name: '대치캠퍼스' };
+// CAMPUS는 getCampus()로 대체됨
+const CAMPUS = { get lat(){ return getCampus().lat; }, get lng(){ return getCampus().lng; }, get name(){ return getCampus().name; } };
 
 let map, currentBus = '1', currentMode = 'board', showRoute = true;
 let markers = [], routeLine = null, campusMarker = null;
@@ -1408,12 +1561,14 @@ function parseSheetRows(rows) {
 // =====================================================
 // 구글 앱스크립트 JSON API 연동
 // =====================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzF4sVnQC3gPg4T73Hv3mevOFhrE7GOxrBhT7CIINcGjxvyZdW9yV8Dj0wWyjyonOhk/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8DHJcrTjDh46Z0jZ-Me6xmFrCVOiODDIAZo5gaZv-oTLyfKTBOVUcp2dL4giwNc8/exec';
 
 async function fetchSheetData() {
   try {
     setSyncStatus('loading');
-    const res = await fetch(APPS_SCRIPT_URL);
+    // SHEET_NAME을 파라미터로 전달해서 캠퍼스별 시트 탭을 구분
+    const url = APPS_SCRIPT_URL + '?sheet=' + encodeURIComponent(SHEET_NAME);
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
 
@@ -1500,13 +1655,15 @@ function init() {
     className: '', iconSize: [28, 28], iconAnchor: [14, 14]
   });
   campusMarker = L.marker([CAMPUS.lat, CAMPUS.lng], { icon: campusIcon }).addTo(map);
-  campusMarker.bindPopup(`<b style="color:#3b82f6">🏫 대치캠퍼스</b><br><small>영동대로 318</small>`);
+  campusMarker.bindPopup(`<b style="color:${getCampus().color}">🏫 ${getCampus().name}</b><br><small style="color:#64748b">${getCampus().addr}</small>`);
 
-  // 저장된 시트 ID 복원
+  // 캠퍼스 UI 초기화
+  updateCampusUI();
+
+  // 저장된 시트 ID 복원 (시트 이름은 캠퍼스 설정 우선)
   const saved = localStorage.getItem('sheetId');
-  const savedName = localStorage.getItem('sheetName');
   if (saved) SHEET_ID = saved;
-  if (savedName) SHEET_NAME = savedName;
+  SHEET_NAME = getCampus().sheetName;  // 항상 캠퍼스 기준
 
   setSyncStatus('fallback');
   setupModals();
@@ -1578,6 +1735,9 @@ function selectYoil(yoil) {
   currentYoil = yoil;
   ROUTES = ALL_ROUTES[currentYoil] || {};
   selectedStop = null;
+  // 요일 변경 시 T맵 캐시 전체 초기화
+  tmapRouteCache = {};
+  resetTmapRow();
   document.querySelectorAll('.yoil-tab-new').forEach(t => t.classList.toggle('active', t.dataset.yoil === yoil));
   document.getElementById('busTabs').innerHTML = '';
   setupBusTabs();
@@ -1674,6 +1834,9 @@ function connectSheet() {
 function selectBus(bus) {
   currentBus = bus;
   selectedStop = null;
+  // T맵 캐시 초기화 + T맵 행 숨김
+  tmapRouteCache = {};
+  resetTmapRow();
   // 전체 노선 모드 해제
   if (showAllRoutes) {
     showAllRoutes = false;
@@ -1681,7 +1844,6 @@ function selectBus(bus) {
     if (btn) btn.classList.remove('active');
     clearAllRoutes();
   }
-  // T맵 오버레이 숨기기
   const overlay = document.getElementById('tmapOverlay');
   if (overlay) overlay.style.display = 'none';
   document.querySelectorAll('.bus-tab-new').forEach(t => {
@@ -1692,6 +1854,19 @@ function selectBus(bus) {
   updateToolbarBusInfo();
   renderStopList();
   renderMap();
+}
+
+function resetTmapRow() {
+  const row     = document.getElementById('tmapRow');
+  const tTime   = document.getElementById('toolbarTime');
+  const tDist   = document.getElementById('toolbarDist');
+  const tStops  = document.getElementById('toolbarStops');
+  const calcBtn = document.getElementById('btnCalcTime');
+  if (row)     row.classList.remove('visible');
+  if (tTime)   tTime.textContent  = '—';
+  if (tDist)   tDist.textContent  = '—';
+  if (tStops)  tStops.textContent = '—';
+  if (calcBtn) { calcBtn.textContent = '⏱ T맵 경로계산'; calcBtn.style.color = ''; }
 }
 
 function setMode(mode, el) {
@@ -1710,8 +1885,8 @@ function renderStopList() {
   const cont = document.getElementById('stopList');
   cont.innerHTML = '';
   let filtered = route.filter(s => s.lat);
-  if (currentMode === 'board')  filtered = filtered.filter(s => s.boardTime && s.boardTime < '12:00');
-  if (currentMode === 'alight') filtered = filtered.filter(s => s.alightTime && s.alightTime > '12:00');
+  // 등원 기준으로만 필터링 (boardTime이 있는 정류장)
+  filtered = filtered.filter(s => s.boardTime);
 
   if (!filtered.length) {
     cont.innerHTML = `<div style="padding:20px 16px;text-align:center;color:var(--muted);font-size:12px">이 시간대 정류장이 없습니다</div>`;
@@ -1722,8 +1897,6 @@ function renderStopList() {
     const realIdx = (ROUTES[currentBus]||[]).findIndex(s => s.place === stop.place && s.lat === stop.lat);
     const isActive = selectedStop === i;
     const stuCount = stop.students.length;
-    const time = currentMode === 'board' ? stop.boardTime : stop.alightTime;
-    const timeClass = currentMode === 'board' ? 'time-board' : 'time-alight';
 
     const item = document.createElement('div');
     item.className = 'stop-item' + (isActive ? ' active expanded' : '');
@@ -1737,7 +1910,6 @@ function renderStopList() {
         <div class="stop-num" style="background:${color}20;color:${color}">${i+1}</div>
         <div class="stop-place">${stop.place.replace(/\n/g,' ')}</div>
         <div class="stop-row-right">
-          ${time ? `<span class="time-badge ${timeClass}">${time}</span>` : ''}
           ${stuCount ? `<span class="stop-stu-badge">👤${stuCount}</span>` : ''}
           <span class="stop-chevron">▼</span>
         </div>
@@ -1745,7 +1917,7 @@ function renderStopList() {
       <div class="stop-body">
         ${stop.detail ? `<div class="stop-detail-text">📍 ${stop.detail}</div>` : ''}
         ${stuCount ? `<div class="stop-students-wrap">${stop.students.map(s=>`<span class="student-chip-new">${s.name}</span>`).join('')}</div>` : ''}
-        ${(stop.boardTime && stop.alightTime && stop.alightTime > '12:00') ? `<div style="display:flex;gap:6px;margin-bottom:8px"><span class="time-badge time-board">↑ ${stop.boardTime}</span><span class="time-badge time-alight">↓ ${stop.alightTime}</span></div>` : ''}
+
         <div class="stop-body-actions">
           <button class="stop-body-btn" onclick="event.stopPropagation();moveStop('${currentBus}',${realIdx},-1)">▲ 위로</button>
           <button class="stop-body-btn" onclick="event.stopPropagation();moveStop('${currentBus}',${realIdx},1)">▼ 아래로</button>
@@ -1824,8 +1996,7 @@ async function loadTmapRoute() {
   btn.disabled = true;
 
   let stops = [...route];
-  if (currentMode === 'board')  stops = stops.filter(s => s.boardTime  && s.boardTime  < '12:00');
-  if (currentMode === 'alight') stops = stops.filter(s => s.alightTime && s.alightTime > '12:00');
+  stops = stops.filter(s => s.boardTime);
   if (stops.length < 2) { btn.textContent = '🛣 T맵 경로'; btn.disabled = false; return; }
 
   // 마지막 목적지로 캠퍼스 추가
@@ -1879,44 +2050,153 @@ function drawTmapRoute(cacheKey) {
   if (cached.totalTime) updateTmapSummary(cached.totalTime, cached.totalDist, cached.stops.length);
 }
 
+// ════════════════════════════════════════════
+// 캠퍼스 전환
+// ════════════════════════════════════════════
+function openCampusSwitch() {
+  const dd = document.getElementById('campusDropdown');
+  if (!dd) return;
+  // 드롭다운 위치: topbar-campus 버튼 기준
+  const btn = document.getElementById('campusSwitcher');
+  const rect = btn.getBoundingClientRect();
+  dd.style.left = rect.left + 'px';
+  dd.style.top  = (rect.bottom + 4) + 'px';
+
+  // 옵션 렌더링
+  dd.innerHTML = Object.entries(CAMPUS_LIST).map(([key, c]) => `
+    <div class="campus-option${key === currentCampusKey ? ' active' : ''}"
+         onclick="selectCampus('${key}')">
+      <div class="campus-dot" style="background:${c.color}"></div>
+      <div class="campus-info">
+        <div class="campus-name">${c.name}</div>
+        <div class="campus-sheet">${c.addr}</div>
+      </div>
+      ${key === currentCampusKey ? '<span style="color:var(--accent);font-size:11px">✓</span>' : ''}
+    </div>`).join('');
+
+  dd.classList.toggle('open');
+
+  // 바깥 클릭 시 닫기
+  setTimeout(() => {
+    document.addEventListener('click', closeCampusDropdown, { once: true });
+  }, 10);
+}
+
+function closeCampusDropdown() {
+  const dd = document.getElementById('campusDropdown');
+  if (dd) dd.classList.remove('open');
+}
+
+async function selectCampus(key) {
+  if (key === currentCampusKey) { closeCampusDropdown(); return; }
+  closeCampusDropdown();
+  currentCampusKey = key;
+  localStorage.setItem('campusKey', key);
+  const c = getCampus();
+
+  // UI 업데이트
+  const lbl = document.getElementById('campusLabel');
+  if (lbl) lbl.textContent = c.name;
+  document.title = `셔틀 노선 관리 시스템 — ${c.name}`;
+
+  // 시트 이름 변경
+  SHEET_NAME = c.sheetName;
+
+  // 데이터 초기화
+  ALL_ROUTES = JSON.parse(JSON.stringify(FALLBACK_ROUTES));
+  tmapRouteCache = {};
+  resetTmapRow();
+
+  // 지도 중심 이동
+  if (map) map.setView([c.lat, c.lng], 13);
+  if (campusMarker) {
+    campusMarker.setLatLng([c.lat, c.lng]);
+    campusMarker.bindPopup(`<b style="color:${c.color}">🏫 ${c.name}</b><br><small style="color:#64748b">${c.addr}</small>`);
+  }
+
+  // syncStatus 표시
+  setSyncStatus('syncing');
+
+  // Firebase → 시트 순으로 로드
+  const fbOk = await loadFromFirestore();
+  if (fbOk) {
+    setSyncStatus('ok', c.name + ' 연동');
+  } else {
+    await fetchSheetData();
+  }
+  ROUTES = ALL_ROUTES[currentYoil] || {};
+  startRealtimeSync();
+  refreshUI();
+}
+
+function updateCampusUI() {
+  const c = getCampus();
+  const lbl = document.getElementById('campusLabel');
+  if (lbl) lbl.textContent = c.name;
+  document.title = `셔틀 노선 관리 시스템 — ${c.name}`;
+}
+
 function updateTmapSummary(totalTime, totalDist, stopCount) {
+  // T맵 행 표시
+  const row = document.getElementById('tmapRow');
+  if (row) row.classList.add('visible');
+  // T맵 값 채우기
   const min = Math.round(totalTime / 60);
   const km  = (totalDist / 1000).toFixed(1);
-  // 툴바 업데이트
   const tTime  = document.getElementById('toolbarTime');
   const tDist  = document.getElementById('toolbarDist');
   const tStops = document.getElementById('toolbarStops');
-  if (tTime)  { tTime.textContent  = min + '분'; tTime.style.color = '#fbbf24'; }
-  if (tDist)  { tDist.textContent  = km + 'km'; }
-  if (tStops) { tStops.textContent = stopCount + '개'; tStops.style.color = 'var(--text)'; }
-  // btnCalcTime 완료 표시
+  if (tTime)  tTime.textContent  = min + '분';
+  if (tDist)  tDist.textContent  = km + 'km';
+  if (tStops) tStops.textContent = stopCount + '개';
+  // 버튼 완료 표시
   const calcBtn = document.getElementById('btnCalcTime');
   if (calcBtn) { calcBtn.textContent = '✅ T맵 완료'; calcBtn.style.color = 'var(--success)'; }
 }
 
 function updateToolbarBusInfo() {
-  const color  = BUS_COLORS[currentBus] || '#888';
-  const stops  = (ROUTES[currentBus] || []);
+  const color   = BUS_COLORS[currentBus] || '#888';
+  const stops   = (ROUTES[currentBus] || []);
   const stopCnt = stops.length;
   const stuCnt  = stops.reduce((a,s) => a + (s.students||[]).length, 0);
+
+  // 호차 셀
   const numEl  = document.getElementById('mapBusNum');
   const infoEl = document.getElementById('mapBusInfo');
   if (numEl)  { numEl.textContent  = currentBus + '호차'; numEl.style.color = color; }
   if (infoEl) { infoEl.textContent = `📍${stopCnt} · 👤${stuCnt}`; }
-  // 소요시간 캐시 있으면 툴바에도 표시
+
+  // 예측 행 계산 (현재 모드 필터 기준 정류장 수 + 직선거리 추정)
+  let filtered = stops.filter(s => s.lat);
+  filtered = filtered.filter(s => s.boardTime);
+  const fCount = filtered.length;
+  let estMin = '—', estKm = '—';
+  if (fCount >= 2) {
+    let totalDist = 0;
+    const allPts = [...filtered, { lat: CAMPUS.lat, lng: CAMPUS.lng }];
+    for (let i = 0; i < allPts.length - 1; i++) {
+      totalDist += calcDist(allPts[i].lat, allPts[i].lng, allPts[i+1].lat, allPts[i+1].lng);
+    }
+    estMin = Math.round(totalDist / 500 * 2) + '분';
+    estKm  = (totalDist / 1000).toFixed(1) + 'km';
+  }
+  const eTime  = document.getElementById('estTime');
+  const eDist  = document.getElementById('estDist');
+  const eStops = document.getElementById('estStops');
+  if (eTime)  eTime.textContent  = estMin;
+  if (eDist)  eDist.textContent  = estKm;
+  if (eStops) eStops.textContent = fCount ? fCount + '개' : '—';
+
+  // T맵 캐시 있으면 T맵 행도 표시, 없으면 숨김
   const cacheKey = currentBus + '_' + currentMode;
   const cache = tmapRouteCache[cacheKey];
+  const tmapRow = document.getElementById('tmapRow');
   if (cache) {
-    updateTmapSummary(cache.totalTime, cache.totalDist, cache.stops?.length || stopCnt);
+    updateTmapSummary(cache.totalTime, cache.totalDist, cache.stops?.length || fCount);
   } else {
-    const tTime  = document.getElementById('toolbarTime');
-    const tDist  = document.getElementById('toolbarDist');
-    const tStops = document.getElementById('toolbarStops');
-    if (tTime)  { tTime.textContent  = '—'; tTime.style.color = 'var(--warn)'; }
-    if (tDist)  { tDist.textContent  = '—'; }
-    if (tStops) { tStops.textContent = stopCnt + '개'; tStops.style.color = 'var(--muted)'; }
-    const calcBtn2 = document.getElementById('btnCalcTime');
-    if (calcBtn2) { calcBtn2.textContent = '⏱ T맵 경로계산'; calcBtn2.style.color = ''; }
+    if (tmapRow) tmapRow.classList.remove('visible');
+    const calcBtn = document.getElementById('btnCalcTime');
+    if (calcBtn) { calcBtn.textContent = '⏱ T맵 경로계산'; calcBtn.style.color = ''; }
   }
 }
 
@@ -1932,8 +2212,7 @@ function renderMap() {
   const route = ROUTES[currentBus] || [];
   const color = BUS_COLORS[currentBus] || '#888';
   let filtered = route.filter(s => s.lat);
-  if (currentMode === 'board')  filtered = filtered.filter(s => s.boardTime && s.boardTime < '12:00');
-  if (currentMode === 'alight') filtered = filtered.filter(s => s.alightTime && s.alightTime > '12:00');
+  filtered = filtered.filter(s => s.boardTime);
 
   const latlngs = [];
   filtered.forEach((stop, i) => {
@@ -2021,8 +2300,7 @@ function renderAllRoutes() {
   Object.entries(ROUTES).forEach(([busNo, route]) => {
     const color = BUS_COLORS[busNo] || '#888';
     let stops = route.filter(s => s.lat);
-    if (currentMode === 'board')  stops = stops.filter(s => s.boardTime  && s.boardTime  < '12:00');
-    if (currentMode === 'alight') stops = stops.filter(s => s.alightTime && s.alightTime > '12:00');
+    stops = stops.filter(s => s.boardTime);
     if (!stops.length) return;
 
     const latlngs = stops.map(s => [s.lat, s.lng]);
@@ -2121,8 +2399,7 @@ function openKakaoMaps() {
 async function calcRouteTime() {
   const route = (ROUTES[currentBus] || []).filter(s => s.lat);
   let filtered = [...route];
-  if (currentMode === 'board')  filtered = filtered.filter(s => s.boardTime  && s.boardTime  < '12:00');
-  if (currentMode === 'alight') filtered = filtered.filter(s => s.alightTime && s.alightTime > '12:00');
+  filtered = filtered.filter(s => s.boardTime);
 
   const allPts = [...filtered, { lat: CAMPUS.lat, lng: CAMPUS.lng, place: '대치캠퍼스' }];
   if (allPts.length < 2) { alert('정류장이 부족합니다.'); return; }
