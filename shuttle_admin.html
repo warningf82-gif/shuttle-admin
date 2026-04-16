@@ -1473,7 +1473,7 @@ let syncTimer = null;
 let lastSyncTime = null;
 let syncStatus = 'fallback';
 
-const YOIL_LIST = ['유치부', '월수금', '화목'];
+let YOIL_LIST = ['유치부', '월수금', '화목']; // 시트 데이터 로드 후 동적 갱신
 const BUS_COLORS = { '1': '#3b82f6', '3': '#10b981', '5': '#f59e0b', '6': '#8b5cf6', '7': '#ef4444' };
 const BUS_NAMES  = { '1': '1호차', '3': '3호차', '5': '5호차', '6': '6호차', '7': '7호차' };
 
@@ -1492,9 +1492,18 @@ let tmapRouteLayer = null;
 // =====================================================
 function parseTime(val) {
   if (!val) return null;
-  const s = String(val);
+  const s = String(val).trim();
+
+  // gviz Date 형식: Date(1899,11,30,14,20,0) — 시간은 4,5번째 인자
+  const dMatch = s.match(/Date\(\d+,\d+,\d+,(\d+),(\d+)/);
+  if (dMatch) {
+    return String(parseInt(dMatch[1])).padStart(2,'0') + ':' + String(parseInt(dMatch[2])).padStart(2,'0');
+  }
+
+  // HH:MM 형식
   const m = s.match(/(\d{1,2}):(\d{2})/);
   if (m) return m[1].padStart(2,'0') + ':' + m[2];
+
   // Excel serial time (0~1 float)
   const f = parseFloat(s);
   if (!isNaN(f) && f > 0 && f < 1) {
@@ -1506,16 +1515,32 @@ function parseTime(val) {
   return null;
 }
 
-function parseSheetRows(rows) {
+function parseSheetRows(rawRows) {
   const busRoutes = {};
+
+  // ── 형식 자동 감지 ──
+  // 앱스크립트가 2차원 배열 [[헤더...], [값...], ...] 로 반환하는 경우 처리
+  let rows = rawRows;
+  if (Array.isArray(rawRows[0])) {
+    // 2차원 배열 → 객체 배열로 변환
+    const headers = rawRows[0].map(h => String(h).trim());
+    rows = rawRows.slice(1)
+      .filter(r => r.some(c => c !== '' && c !== null && c !== undefined))
+      .map(r => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = r[i] !== undefined ? r[i] : ''; });
+        return obj;
+      });
+    console.log('[Sheet] 2차원 배열 감지 → 변환 완료, 헤더:', headers);
+  }
 
   rows.forEach(row => {
     const busRaw  = row['승차'];
-    const boardT  = row['등원시간'];
-    const alightT = row['하원시간'];
-    const place   = String(row['승하차장소'] || '').trim();
+    const boardT  = row['등원시간'] || row['시간'];
+    const alightT = row['하원시간'] || row['하차'];
+    const place   = String(row['승하차 장소'] || row['승하차장소'] || row['장소'] || '').trim();
     const yoilRaw = String(row['요일'] || '').trim();
-    const name    = String(row['이름'] || '').trim();
+    const name    = String(row['이름'] || row['미름'] || '').trim();
     const detail  = String(row['주소'] || '').trim();
     const lng     = parseFloat(row['경도']);
     const lat     = parseFloat(row['위도']);
@@ -1551,7 +1576,6 @@ function parseSheetRows(rows) {
     const [yoil, bus] = key.split('|||');
     if (!byYoil[yoil]) byYoil[yoil] = {};
     const stops = Object.values(stopsObj)
-      .filter(s => s.lat)
       .sort((a,b) => (a.boardTime||'99:99') < (b.boardTime||'99:99') ? -1 : 1);
     if (stops.length) byYoil[yoil][bus] = stops;
   }
@@ -1561,37 +1585,126 @@ function parseSheetRows(rows) {
 // =====================================================
 // 구글 앱스크립트 JSON API 연동
 // =====================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8DHJcrTjDh46Z0jZ-Me6xmFrCVOiODDIAZo5gaZv-oTLyfKTBOVUcp2dL4giwNc8/exec';
+// gviz JSONP API: file:// 프로토콜에서도 CORS 없이 작동합니다.
+// gviz는 응답을 google.visualization.Query.setResponse({...}) 형태로 감싸므로
+// 해당 네임스페이스를 미리 mock으로 만들어둡니다.
 
-async function fetchSheetData() {
-  try {
+// google.visualization mock (gviz JSONP 응답 수신용)
+window.google = window.google || {};
+window.google.visualization = window.google.visualization || {};
+window.google.visualization.Query = window.google.visualization.Query || {};
+
+function fetchSheetData() {
+  return new Promise((resolve) => {
     setSyncStatus('loading');
-    // SHEET_NAME을 파라미터로 전달해서 캠퍼스별 시트 탭을 구분
-    const url = APPS_SCRIPT_URL + '?sheet=' + encodeURIComponent(SHEET_NAME);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const rows = await res.json();
 
-    if (!Array.isArray(rows) || rows.length === 0) throw new Error('데이터가 비어있습니다');
+    const old = document.getElementById('__gviz_script__');
+    if (old) old.remove();
 
-    console.log('[Sheet] 첫 행 키:', Object.keys(rows[0]));
-    const parsed = parseSheetRows(rows);
+    // gviz는 항상 google.visualization.Query.setResponse 를 콜백으로 사용
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    console.log('[gviz] 요청 URL:', url);
 
-    if (parsed && Object.keys(parsed).length > 0) {
-      ALL_ROUTES = parsed;
-      ROUTES = ALL_ROUTES[currentYoil] || {};
-      lastSyncTime = new Date();
-      setSyncStatus('ok');
-      refreshUI();
-      return true;
-    } else {
-      throw new Error('데이터 파싱 실패 — 컬럼명을 확인하세요');
-    }
-  } catch(e) {
-    console.error('Sheet sync error:', e);
-    setSyncStatus('error', e.message);
-    return false;
-  }
+    const timer = setTimeout(() => {
+      window.google.visualization.Query.setResponse = null;
+      setSyncStatus('error', '응답 없음 (timeout)');
+      resolve(false);
+    }, 10000);
+
+    window.google.visualization.Query.setResponse = function(gvizData) {
+      clearTimeout(timer);
+      window.google.visualization.Query.setResponse = null;
+      const s = document.getElementById('__gviz_script__');
+      if (s) s.remove();
+
+      try {
+        if (gvizData.status === 'error') {
+          const msg = (gvizData.errors && gvizData.errors[0]) ? gvizData.errors[0].detailed_message : '시트 오류';
+          throw new Error(msg);
+        }
+
+        // 컬럼 순서: 승차(0), 시간=등원(1), 하차(2), 시간=하원(3), 승하차 장소(4), 요일(5), 이름(6), 주소(7), 경도(8), 위도(9)
+        const cols = gvizData.table.cols.map(c => (c.label && c.label.trim()) ? c.label.trim() : (c.id || ''));
+        console.log('[gviz] 컬럼:', cols);
+
+        const rows = gvizData.table.rows
+          .map(r => {
+            const cell = (i) => {
+              const c = r.c ? r.c[i] : null;
+              return (c && c.v !== null && c.v !== undefined) ? String(c.v) : '';
+            };
+            // 인덱스 고정 매핑 (중복 헤더 '시간' 대응)
+            // gviz 시간값은 v가 Date 문자열로 오므로 f(formatted) 보다 v를 우선 사용
+            const rawCell = (i) => {
+              const c = r.c ? r.c[i] : null;
+              if (!c || c.v === null || c.v === undefined) return '';
+              // 시간 타입: v가 "Date(...)" 형태
+              return String(c.v);
+            };
+            return {
+              '승차':        rawCell(0),
+              '등원시간':    rawCell(1),
+              '하차':        rawCell(2),
+              '하원시간':    rawCell(3),
+              '승하차 장소': rawCell(4),
+              '요일':        rawCell(5),
+              '이름':        rawCell(6),
+              '주소':        rawCell(7),
+              '경도':        rawCell(8),
+              '위도':        rawCell(9),
+            };
+          })
+          .filter(row => Object.values(row).some(v => v !== ''));
+
+        console.log('[gviz] 파싱된 행 수:', rows.length, '/ 첫 행:', rows[0]);
+
+        if (!rows || rows.length === 0) throw new Error('데이터가 비어있습니다');
+
+        const parsed = parseSheetRows(rows);
+
+        if (parsed && Object.keys(parsed).length > 0) {
+          ALL_ROUTES = parsed;
+          // 시트에서 가져온 요일 목록으로 동적 갱신 (원래 순서 유지)
+          const sheetYoils = Object.keys(parsed);
+          // 유치부 → 월수금 계열 → 화목 계열 순으로 정렬
+          const YOIL_ORDER = ['유치부', '월수금', '화목'];
+          YOIL_LIST = sheetYoils.sort((a, b) => {
+            const baseA = YOIL_ORDER.findIndex(o => a.startsWith(o));
+            const baseB = YOIL_ORDER.findIndex(o => b.startsWith(o));
+            const idxA = baseA === -1 ? 99 : baseA;
+            const idxB = baseB === -1 ? 99 : baseB;
+            if (idxA !== idxB) return idxA - idxB;
+            return a.localeCompare(b, 'ko'); // 같은 계열이면 1차 < 2차
+          });
+          // currentYoil이 새 목록에 없으면 첫 번째로 초기화
+          if (!YOIL_LIST.includes(currentYoil)) currentYoil = YOIL_LIST[0] || '유치부';
+          ROUTES = ALL_ROUTES[currentYoil] || {};
+          lastSyncTime = new Date();
+          setSyncStatus('ok');
+          refreshUI();
+          console.log('[gviz] 파싱 성공 — 요일:', YOIL_LIST, '/ SHEET_NAME:', SHEET_NAME);
+          resolve(true);
+        } else {
+          const sampleRow = Object.keys(rows[0] || {});
+          throw new Error('데이터 파싱 실패 — 컬럼명: ' + JSON.stringify(sampleRow).substring(0, 120));
+        }
+      } catch(e) {
+        console.error('Sheet sync error:', e);
+        setSyncStatus('error', e.message);
+        resolve(false);
+      }
+    };
+
+    const script = document.createElement('script');
+    script.id = '__gviz_script__';
+    script.src = url;
+    script.onerror = () => {
+      clearTimeout(timer);
+      setSyncStatus('error', '스크립트 로드 실패');
+      resolve(false);
+    };
+    document.head.appendChild(script);
+  });
 }
 
 function setSyncStatus(status, msg) {
@@ -1620,6 +1733,7 @@ function refreshUI() {
   ROUTES = ALL_ROUTES[currentYoil] || {};
   setupTopStats();
   setupLegend();
+  setupYoilTabs();  // 시트 로드 후 요일 탭 동적 갱신
   document.getElementById('busTabs').innerHTML = '';
   setupBusTabs();
   Object.keys(ROUTES).forEach(b => {
@@ -1670,7 +1784,7 @@ function init() {
 
   // 로드 순서: Firestore(수정사항) → 구글시트(원본) → 화면 표시
   fetchSheetData().then(sheetOk => {
-    if (!sheetOk) loadFromLocal();
+    if (!sheetOk) { loadFromFirestore().then(fbOk => { if (!fbOk) loadFromLocal(); }); }
     // Firestore에서 최신 수정사항 덮어쓰기
     loadFromFirestore().then(() => {
       ROUTES = ALL_ROUTES[currentYoil] || {};
@@ -1721,13 +1835,54 @@ function setupLegend() {
 function setupYoilTabs() {
   const cont = document.getElementById('yoilTabs');
   if (!cont) return;
-  const subLabels = { '유치부': '아침·오후', '월수금': '오후', '화목': '오후' };
-  cont.innerHTML = YOIL_LIST.map(y => {
-    const isActive = y === currentYoil;
-    return `<div class="yoil-tab-new${isActive ? ' active' : ''}" data-yoil="${y}" onclick="selectYoil('${y}')">
-      <div class="yoil-label">${y}</div>
-      <div class="yoil-sub">${subLabels[y] || ''}</div>
-    </div>`;
+
+  const YOIL_COLORS = ['#a855f7','#3b82f6','#10b981','#f59e0b','#ef4444','#06b6d4','#f97316','#8b5cf6','#84cc16','#ec4899'];
+
+  // 베이스명(1차/2차 접미사 제거) 추출
+  function baseName(y) { return y.replace(/\s*[12]차$/, '').trim(); }
+
+  // 그룹핑: { baseName: [y1, y2?, ...], ... } — 순서 유지
+  const groups = [];
+  const groupMap = {};
+  YOIL_LIST.forEach(y => {
+    const base = baseName(y);
+    if (!groupMap[base]) {
+      groupMap[base] = { base, items: [] };
+      groups.push(groupMap[base]);
+    }
+    groupMap[base].items.push(y);
+  });
+
+  // 색상: base별로 배정
+  const baseColorMap = {};
+  groups.forEach((g, idx) => { baseColorMap[g.base] = YOIL_COLORS[idx % YOIL_COLORS.length]; });
+
+  // 렌더링: 단독이면 1열, 1차/2차 있으면 같은 열에 2행으로
+  cont.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;align-items:flex-start;';
+  cont.innerHTML = groups.map(g => {
+    const color = baseColorMap[g.base];
+    if (g.items.length === 1) {
+      const y = g.items[0];
+      const isActive = y === currentYoil;
+      const sub = y.includes('유치') ? '아침·오후' : '오후';
+      return `<div class="yoil-tab-new${isActive ? ' active' : ''}" data-yoil="${y}" onclick="selectYoil('${y}')"
+        style="--yc:${color};flex:1;${isActive ? 'background:'+color+'33;border-color:'+color+';color:#fff;' : ''}">
+        <div class="yoil-label">${y}</div>
+        <div class="yoil-sub">${sub}</div>
+      </div>`;
+    } else {
+      // 같은 열에 세로 배치
+      const inner = g.items.map(y => {
+        const isActive = y === currentYoil;
+        const sub = y.replace(g.base, '').trim() || '오후';
+        return `<div class="yoil-tab-new${isActive ? ' active' : ''}" data-yoil="${y}" onclick="selectYoil('${y}')"
+          style="--yc:${color};${isActive ? 'background:'+color+'33;border-color:'+color+';color:#fff;' : ''}">
+          <div class="yoil-label">${y}</div>
+          <div class="yoil-sub">${sub}</div>
+        </div>`;
+      }).join('');
+      return `<div style="flex:1;display:flex;flex-direction:column;gap:4px;">${inner}</div>`;
+    }
   }).join('');
 }
 
@@ -1885,8 +2040,8 @@ function renderStopList() {
   const cont = document.getElementById('stopList');
   cont.innerHTML = '';
   let filtered = route.filter(s => s.lat);
-  // 등원 기준으로만 필터링 (boardTime이 있는 정류장)
-  filtered = filtered.filter(s => s.boardTime);
+  // boardTime 또는 alightTime 중 하나라도 있으면 표시
+  filtered = filtered.filter(s => s.boardTime || s.alightTime);
 
   if (!filtered.length) {
     cont.innerHTML = `<div style="padding:20px 16px;text-align:center;color:var(--muted);font-size:12px">이 시간대 정류장이 없습니다</div>`;
@@ -2117,13 +2272,14 @@ async function selectCampus(key) {
   // syncStatus 표시
   setSyncStatus('syncing');
 
-  // Firebase → 시트 순으로 로드
-  const fbOk = await loadFromFirestore();
-  if (fbOk) {
-    setSyncStatus('ok', c.name + ' 연동');
-  } else {
-    await fetchSheetData();
+  // 시트 우선 로드 → 실패 시 Firestore 폴백
+  const sheetOk = await fetchSheetData();
+  if (!sheetOk) {
+    const fbOk = await loadFromFirestore();
+    if (fbOk) setSyncStatus('fallback', 'Firestore 캐시 사용 중');
   }
+  // YOIL_LIST가 갱신됐을 수 있으므로 currentYoil 재확인
+  if (!YOIL_LIST.includes(currentYoil)) currentYoil = YOIL_LIST[0] || '유치부';
   ROUTES = ALL_ROUTES[currentYoil] || {};
   startRealtimeSync();
   refreshUI();
