@@ -204,20 +204,32 @@
     cursor: pointer;
     text-align: center;
     border: 1.5px solid var(--border);
+    border-bottom: 3px solid color-mix(in srgb, var(--border) 60%, #000);
     background: var(--surface2);
     color: var(--muted);
-    transition: all 0.15s;
+    transition: all 0.12s ease;
     font-family: 'Noto Sans KR', sans-serif;
     line-height: 1.1;
+    transform: translateY(0);
+    user-select: none;
   }
-  .yoil-tab-new:hover { color: var(--text); border-color: #3b4460; }
-  .yoil-tab-new.active { color: #fff; border-color: transparent; }
-  .yoil-tab-new[data-yoil="유치부"] { --yc: #a855f7; }
-  .yoil-tab-new[data-yoil="월수금"] { --yc: #3b82f6; }
-  .yoil-tab-new[data-yoil="화목"]   { --yc: #10b981; }
+  .yoil-tab-new:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--yc, #888) 40%, var(--border));
+    border-bottom-color: color-mix(in srgb, var(--yc, #888) 40%, #000);
+    transform: translateY(-1px);
+  }
   .yoil-tab-new.active {
-    background: var(--yc);
-    box-shadow: 0 2px 12px rgba(0,0,0,.3);
+    background: var(--yc, #888);
+    border-color: color-mix(in srgb, var(--yc, #888) 80%, #000);
+    border-bottom: 3px solid color-mix(in srgb, var(--yc, #888) 50%, #000);
+    color: #fff;
+    transform: translateY(1px);
+    box-shadow: 0 1px 4px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.15);
+  }
+  .yoil-tab-new:active {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
   }
   .yoil-tab-new .yoil-label { font-size: 13px; }
   .yoil-tab-new .yoil-sub  { font-size: 9px; opacity: 0.7; margin-top: 2px; }
@@ -237,15 +249,29 @@
     border-radius: 8px;
     cursor: pointer;
     border: 1.5px solid var(--border);
+    border-bottom: 3px solid color-mix(in srgb, var(--border) 60%, #000);
     background: var(--surface2);
-    transition: all 0.15s;
+    transition: all 0.12s ease;
     min-width: 54px;
     position: relative;
+    transform: translateY(0);
+    user-select: none;
   }
-  .bus-tab-new:hover { border-color: #3b4460; }
+  .bus-tab-new:hover {
+    border-color: color-mix(in srgb, var(--bc, #888) 40%, var(--border));
+    border-bottom-color: color-mix(in srgb, var(--bc, #888) 40%, #000);
+    transform: translateY(-1px);
+  }
   .bus-tab-new.active {
     border-color: var(--bc);
-    background: color-mix(in srgb, var(--bc) 12%, var(--surface2));
+    border-bottom: 3px solid color-mix(in srgb, var(--bc) 50%, #000);
+    background: color-mix(in srgb, var(--bc) 15%, var(--surface2));
+    transform: translateY(1px);
+    box-shadow: 0 1px 4px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .bus-tab-new:active {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
   }
   .bus-tab-new .btn-label {
     font-family: 'JetBrains Mono', monospace;
@@ -1866,17 +1892,16 @@ function setupYoilTabs() {
       const isActive = y === currentYoil;
       const sub = y.includes('유치') ? '아침·오후' : '오후';
       return `<div class="yoil-tab-new${isActive ? ' active' : ''}" data-yoil="${y}" onclick="selectYoil('${y}')"
-        style="--yc:${color};flex:1;${isActive ? 'background:'+color+'33;border-color:'+color+';color:#fff;' : ''}">
+        style="--yc:${color};flex:1;">
         <div class="yoil-label">${y}</div>
         <div class="yoil-sub">${sub}</div>
       </div>`;
     } else {
-      // 같은 열에 세로 배치
       const inner = g.items.map(y => {
         const isActive = y === currentYoil;
         const sub = y.replace(g.base, '').trim() || '오후';
         return `<div class="yoil-tab-new${isActive ? ' active' : ''}" data-yoil="${y}" onclick="selectYoil('${y}')"
-          style="--yc:${color};${isActive ? 'background:'+color+'33;border-color:'+color+';color:#fff;' : ''}">
+          style="--yc:${color};">
           <div class="yoil-label">${y}</div>
           <div class="yoil-sub">${sub}</div>
         </div>`;
@@ -1890,8 +1915,7 @@ function selectYoil(yoil) {
   currentYoil = yoil;
   ROUTES = ALL_ROUTES[currentYoil] || {};
   selectedStop = null;
-  // 요일 변경 시 T맵 캐시 전체 초기화
-  tmapRouteCache = {};
+  // 요일 변경 시 버튼 UI만 리셋 (캐시는 유지)
   resetTmapRow();
   document.querySelectorAll('.yoil-tab-new').forEach(t => t.classList.toggle('active', t.dataset.yoil === yoil));
   document.getElementById('busTabs').innerHTML = '';
@@ -1989,8 +2013,7 @@ function connectSheet() {
 function selectBus(bus) {
   currentBus = bus;
   selectedStop = null;
-  // T맵 캐시 초기화 + T맵 행 숨김
-  tmapRouteCache = {};
+  // T맵 행 UI 리셋 (캐시는 유지 — 재선택 시 바로 표시)
   resetTmapRow();
   // 전체 노선 모드 해제
   if (showAllRoutes) {
@@ -2021,7 +2044,18 @@ function resetTmapRow() {
   if (tTime)   tTime.textContent  = '—';
   if (tDist)   tDist.textContent  = '—';
   if (tStops)  tStops.textContent = '—';
-  if (calcBtn) { calcBtn.textContent = '⏱ T맵 경로계산'; calcBtn.style.color = ''; }
+  // 현재 호차+모드 캐시가 있으면 버튼을 완료 상태로 유지
+  const cacheKey = currentBus + '_' + currentMode;
+  if (calcBtn) {
+    if (tmapRouteCache[cacheKey]) {
+      calcBtn.textContent = '✅ T맵계산완료';
+      calcBtn.classList.add('active');
+    } else {
+      calcBtn.textContent = '🛣 T맵 경로';
+      calcBtn.classList.remove('active');
+      calcBtn.style.color = '';
+    }
+  }
 }
 
 function setMode(mode, el) {
@@ -2352,7 +2386,7 @@ function updateToolbarBusInfo() {
   } else {
     if (tmapRow) tmapRow.classList.remove('visible');
     const calcBtn = document.getElementById('btnCalcTime');
-    if (calcBtn) { calcBtn.textContent = '⏱ T맵 경로계산'; calcBtn.style.color = ''; }
+    if (calcBtn) { calcBtn.textContent = '🛣 T맵 경로'; calcBtn.style.color = ''; }
   }
 }
 
@@ -2566,7 +2600,7 @@ async function calcRouteTime() {
   const cached = tmapRouteCache[cacheKey];
 
   if (cached) {
-    showRouteTimeModal(cached.totalTime, cached.totalDist, filtered, color, true);
+    showRouteTimeModal(cached.totalTime, cached.totalDist, filtered, color, true, cached.segResults);
     return;
   }
 
@@ -2590,17 +2624,17 @@ async function calcRouteTime() {
       if (i < segCount - 1) await new Promise(r => setTimeout(r, 120));
     }
 
-    tmapRouteCache[cacheKey] = { coords: allCoords, totalTime, totalDist, stops: filtered };
+    tmapRouteCache[cacheKey] = { coords: allCoords, totalTime, totalDist, stops: filtered, segResults };
     drawTmapRoute(cacheKey);
     updateTmapSummary(totalTime, totalDist, filtered.length);
-    btn.textContent = '✅ 소요시간';
+    btn.textContent = '✅ T맵계산완료';
     btn.classList.add('active');
     btn.disabled = false;
     showRouteTimeModal(totalTime, totalDist, filtered, color, true, segResults);
 
   } catch(e) {
     console.error('T맵 오류:', e);
-    btn.textContent = '⏱ 소요시간 계산';
+    btn.textContent = '🛣 T맵 경로';
     btn.disabled = false;
     let totalDistFallback = 0;
     const rows = [];
@@ -3518,7 +3552,6 @@ window.addEventListener('load', () => {
     <div class="modal-body" id="rt-content" style="max-height:70vh;overflow-y:auto"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('routeTime')">닫기</button>
-      <button class="btn btn-primary" onclick="loadTmapRoute();closeModal('routeTime')">🛣 T맵으로 정확히 계산</button>
     </div>
   </div>
 </div>
