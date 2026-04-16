@@ -234,6 +234,90 @@
   .yoil-tab-new .yoil-label { font-size: 13px; }
   .yoil-tab-new .yoil-sub  { font-size: 9px; opacity: 0.7; margin-top: 2px; }
 
+  /* ── 지도 우클릭 컨텍스트 메뉴 ── */
+  #mapContextMenu {
+    position: fixed;
+    z-index: 9999;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.45);
+    min-width: 180px;
+    overflow: hidden;
+    display: none;
+    animation: modalIn .1s ease;
+  }
+  #mapContextMenu.open { display: block; }
+  .ctx-header {
+    padding: 8px 14px 6px;
+    font-size: 10px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .1s;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  .ctx-item:hover { background: var(--surface2); color: var(--accent); }
+  /* 드래그앤드롭 */
+  .stop-item[draggable] { cursor: grab; }
+  .stop-item[draggable]:active { cursor: grabbing; }
+  .stop-item.drag-over {
+    border-top: 2px solid var(--accent) !important;
+    background: rgba(59,130,246,0.07) !important;
+  }
+  .stop-item.dragging {
+    opacity: 0.4;
+  }
+  .drag-handle {
+    color: var(--muted);
+    font-size: 14px;
+    cursor: grab;
+    padding: 0 4px 0 0;
+    flex-shrink: 0;
+    opacity: 0.4;
+    transition: opacity .15s;
+  }
+  .stop-item:hover .drag-handle { opacity: 1; }
+
+  /* 학생 추가 섹션 in addStop modal */
+  .quick-students-wrap {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .quick-student-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .quick-student-row span { flex: 1; }
+  .quick-student-del {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
+    line-height: 1;
+  }
+  .quick-student-del:hover { color: var(--danger); }
+
   /* ── 호차 탭 업그레이드 ── */
   .bus-tabs-new {
     display: flex;
@@ -938,8 +1022,8 @@
   .modal-overlay.open { display: flex; }
   .modal {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; width: 440px; max-width: 95vw;
-    max-height: 85vh; display: flex; flex-direction: column;
+    border-radius: 12px; width: 480px; max-width: 95vw;
+    max-height: 90vh; display: flex; flex-direction: column;
     box-shadow: 0 20px 60px rgba(0,0,0,0.6);
     animation: modalIn .15s ease;
   }
@@ -956,7 +1040,7 @@
     transition: all .15s;
   }
   .modal-close:hover { background: var(--danger); color: #fff; }
-  .modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+  .modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; min-height: 0; }
   .modal-footer {
     padding: 14px 20px; border-top: 1px solid var(--border);
     display: flex; gap: 8px; justify-content: flex-end;
@@ -1193,7 +1277,7 @@
 
 <!-- 정류장 추가 -->
 <div class="modal-overlay" id="modal-addStop">
-  <div class="modal">
+  <div class="modal" style="width:500px;max-width:96vw;">
     <div class="modal-header">
       <div class="modal-title">📍 정류장 추가</div>
       <button class="modal-close" onclick="closeModal('addStop')">×</button>
@@ -1235,10 +1319,19 @@
         💡 지도를 클릭해서 좌표를 자동으로 가져올 수 있어요
         <button onclick="startMapPick()" style="margin-left:6px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;" id="btnMapPick">🗺 지도에서 선택</button>
       </div>
+      <div class="field" style="margin-top:14px">
+        <div class="field-label">탑승 학생 (선택)</div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <input class="field-input" id="as-student-input" placeholder="학생 이름 입력 후 Enter" style="flex:1"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();addStopStudent();}" />
+          <button onclick="addStopStudent()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0 12px;font-size:12px;cursor:pointer;white-space:nowrap">+ 추가</button>
+        </div>
+        <div class="quick-students-wrap" id="as-student-list"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('addStop')">취소</button>
-      <button class="btn btn-primary" onclick="addStop()">추가</button>
+      <button class="btn btn-primary" onclick="addStop()">정류장 추가</button>
     </div>
   </div>
 </div>
@@ -1452,6 +1545,7 @@ function startRealtimeSync() {
 // 🗺 T맵 API 설정
 // =====================================================
 const TMAP_KEY = 'zjk2IP7f081TP7qHntyd03bwHt7k5lQXK384eZGi';
+const SHEETS_WRITE_URL = 'https://script.google.com/macros/s/AKfycbz5kwqHA0EJFAj42b9PuLHGbhSYQ2YDYAnvWjWk2VIeMSvIqTcIgB9WA-xae3vOwTvu/exec'; // Apps Script 웹앱 — 시트 쓰기용
 
 // ── 캠퍼스 설정 ──
 const CAMPUS_LIST = {
@@ -1619,6 +1713,25 @@ function parseSheetRows(rawRows) {
 window.google = window.google || {};
 window.google.visualization = window.google.visualization || {};
 window.google.visualization.Query = window.google.visualization.Query || {};
+
+// ── 구글 시트 쓰기 (Apps Script 웹앱 경유) ──
+async function sheetsWrite(action, payload) {
+  try {
+    const body = JSON.stringify({ action, sheet: SHEET_NAME, ...payload });
+    const res = await fetch(SHEETS_WRITE_URL, {
+      method: 'POST',
+      body,
+      headers: { 'Content-Type': 'text/plain' } // Apps Script는 text/plain으로 받아야 CORS 안 막힘
+    });
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message || '알 수 없는 오류');
+    console.log('[Sheets Write]', action, '→', data.message);
+    return true;
+  } catch(e) {
+    console.error('[Sheets Write] 실패:', e);
+    return false;
+  }
+}
 
 function fetchSheetData() {
   return new Promise((resolve) => {
@@ -1809,6 +1922,7 @@ function init() {
   setupModals();
 
   // 로드 순서: Firestore(수정사항) → 구글시트(원본) → 화면 표시
+  initMapContextMenu();
   fetchSheetData().then(sheetOk => {
     if (!sheetOk) { loadFromFirestore().then(fbOk => { if (!fbOk) loadFromLocal(); }); }
     // Firestore에서 최신 수정사항 덮어쓰기
@@ -2073,9 +2187,8 @@ function renderStopList() {
   const color = BUS_COLORS[currentBus] || '#888';
   const cont = document.getElementById('stopList');
   cont.innerHTML = '';
-  let filtered = route.filter(s => s.lat);
-  // boardTime 또는 alightTime 중 하나라도 있으면 표시
-  filtered = filtered.filter(s => s.boardTime || s.alightTime);
+  // 장소명이 있으면 표시 (시간·좌표 없어도 목록엔 나옴, 지도 핀은 lat 있을 때만)
+  let filtered = route.filter(s => s.place);
 
   if (!filtered.length) {
     cont.innerHTML = `<div style="padding:20px 16px;text-align:center;color:var(--muted);font-size:12px">이 시간대 정류장이 없습니다</div>`;
@@ -2090,12 +2203,15 @@ function renderStopList() {
     const item = document.createElement('div');
     item.className = 'stop-item' + (isActive ? ' active expanded' : '');
     item.style.setProperty('--color', color);
+    item.setAttribute('draggable', 'true');
+    item.dataset.realIdx = realIdx;
 
     const otherBuses = Object.keys(ROUTES).sort((a,b)=>parseInt(a)-parseInt(b)).filter(b=>b!==currentBus);
 
     item.innerHTML = `
       <div class="stop-connector" style="background:${color}30"></div>
       <div class="stop-row">
+        <span class="drag-handle" title="드래그로 순서 변경">⠿</span>
         <div class="stop-num" style="background:${color}20;color:${color}">${i+1}</div>
         <div class="stop-place">${stop.place.replace(/\n/g,' ')}</div>
         <div class="stop-row-right">
@@ -2123,10 +2239,10 @@ function renderStopList() {
         </div>` : ''}
       </div>`;
 
-    // 클릭 시 아코디언 토글
-    item.querySelector('.stop-row').addEventListener('click', () => {
+    // 클릭 시 아코디언 토글 (drag handle 제외)
+    item.querySelector('.stop-row').addEventListener('click', (e) => {
+      if (e.target.closest('.drag-handle')) return;
       const wasExpanded = item.classList.contains('expanded');
-      // 다른 아이템 닫기
       cont.querySelectorAll('.stop-item.expanded').forEach(el => el.classList.remove('expanded'));
       if (!wasExpanded) {
         item.classList.add('expanded');
@@ -2134,6 +2250,34 @@ function renderStopList() {
       } else {
         selectedStop = null;
       }
+    });
+
+    // ── 드래그앤드롭 이벤트 ──
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(realIdx));
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      cont.querySelectorAll('.stop-item').forEach(el => el.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      cont.querySelectorAll('.stop-item').forEach(el => el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over');
+    });
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const toIdx   = parseInt(item.dataset.realIdx);
+      if (fromIdx === toIdx || isNaN(fromIdx) || isNaN(toIdx)) return;
+      dragMoveStop(fromIdx, toIdx);
     });
 
     cont.appendChild(item);
@@ -2185,7 +2329,7 @@ async function loadTmapRoute() {
   btn.disabled = true;
 
   let stops = [...route];
-  stops = stops.filter(s => s.boardTime);
+  stops = stops.filter(s => s.place);
   if (stops.length < 2) { btn.textContent = '🛣 T맵 경로'; btn.disabled = false; return; }
 
   // 마지막 목적지로 캠퍼스 추가
@@ -2358,7 +2502,7 @@ function updateToolbarBusInfo() {
 
   // 예측 행 계산 (현재 모드 필터 기준 정류장 수 + 직선거리 추정)
   let filtered = stops.filter(s => s.lat);
-  filtered = filtered.filter(s => s.boardTime);
+  filtered = filtered.filter(s => s.place);
   const fCount = filtered.length;
   let estMin = '—', estKm = '—';
   if (fCount >= 2) {
@@ -2402,7 +2546,7 @@ function renderMap() {
   const route = ROUTES[currentBus] || [];
   const color = BUS_COLORS[currentBus] || '#888';
   let filtered = route.filter(s => s.lat);
-  filtered = filtered.filter(s => s.boardTime);
+  filtered = filtered.filter(s => s.place);
 
   const latlngs = [];
   filtered.forEach((stop, i) => {
@@ -2490,7 +2634,7 @@ function renderAllRoutes() {
   Object.entries(ROUTES).forEach(([busNo, route]) => {
     const color = BUS_COLORS[busNo] || '#888';
     let stops = route.filter(s => s.lat);
-    stops = stops.filter(s => s.boardTime);
+    stops = stops.filter(s => s.place);
     if (!stops.length) return;
 
     const latlngs = stops.map(s => [s.lat, s.lng]);
@@ -2589,7 +2733,7 @@ function openKakaoMaps() {
 async function calcRouteTime() {
   const route = (ROUTES[currentBus] || []).filter(s => s.lat);
   let filtered = [...route];
-  filtered = filtered.filter(s => s.boardTime);
+  filtered = filtered.filter(s => s.boardTime || s.alightTime);
 
   const allPts = [...filtered, { lat: CAMPUS.lat, lng: CAMPUS.lng, place: '대치캠퍼스' }];
   if (allPts.length < 2) { alert('정류장이 부족합니다.'); return; }
@@ -2741,6 +2885,9 @@ function openModal(id) {
     const sel = document.getElementById('as-bus');
     sel.innerHTML = Object.keys(ROUTES).map(b => `<option value="${b}">${b}호차</option>`).join('');
     sel.value = currentBus;
+    // 학생 목록 초기화 (사이드바 버튼으로 열 때)
+    _quickStudents = [];
+    renderQuickStudents();
   }
   if (id === 'deleteBus') {
     const sel = document.getElementById('db-bus');
@@ -2800,6 +2947,84 @@ function deleteBus() {
 }
 
 // ── 지도 클릭으로 좌표 선택 ──
+// ── 지도 우클릭 컨텍스트 메뉴 ──
+let _ctxLatLng = null;
+let _quickStudents = [];
+
+function initMapContextMenu() {
+  const menu = document.getElementById('mapContextMenu');
+
+  // 지도 우클릭
+  map.on('contextmenu', function(e) {
+    L.DomEvent.preventDefault(e.originalEvent);
+    _ctxLatLng = e.latlng;
+    const coordsEl = document.getElementById('ctxCoords');
+    if (coordsEl) coordsEl.textContent = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+    menu.style.left = e.originalEvent.clientX + 'px';
+    menu.style.top  = e.originalEvent.clientY + 'px';
+    menu.classList.add('open');
+  });
+
+  // 다른 곳 클릭 시 닫기
+  document.addEventListener('click', () => menu.classList.remove('open'));
+  document.addEventListener('contextmenu', (e) => {
+    if (!e.target.closest('#map')) menu.classList.remove('open');
+  });
+}
+
+function openAddStopFromContext() {
+  document.getElementById('mapContextMenu').classList.remove('open');
+  if (!_ctxLatLng) return;
+
+  // 좌표 자동 입력
+  document.getElementById('as-lat').value = _ctxLatLng.lat.toFixed(6);
+  document.getElementById('as-lng').value = _ctxLatLng.lng.toFixed(6);
+
+  // 학생 목록 초기화
+  _quickStudents = [];
+  renderQuickStudents();
+
+  // 폼 나머지 초기화
+  ['as-place','as-detail','as-board','as-alight','as-student-input'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  openModal('addStop');
+  // 장소명 인풋에 포커스
+  setTimeout(() => document.getElementById('as-place').focus(), 100);
+}
+
+function addStopStudent() {
+  const inp = document.getElementById('as-student-input');
+  const name = inp.value.trim();
+  if (!name) return;
+  _quickStudents.push(name);
+  inp.value = '';
+  renderQuickStudents();
+  inp.focus();
+}
+
+function removeQuickStudent(idx) {
+  _quickStudents.splice(idx, 1);
+  renderQuickStudents();
+}
+
+function renderQuickStudents() {
+  const wrap = document.getElementById('as-student-list');
+  if (!wrap) return;
+  if (_quickStudents.length === 0) {
+    wrap.innerHTML = '';
+    return;
+  }
+  wrap.innerHTML = _quickStudents.map((name, i) =>
+    `<div class="quick-student-row">
+      <span>👤 ${name}</span>
+      <button class="quick-student-del" onclick="removeQuickStudent(${i})">✕</button>
+    </div>`
+  ).join('');
+}
+
 function startMapPick() {
   _mapPickMode = true;
   document.getElementById('btnMapPick').textContent = '🎯 지도를 클릭하세요...';
@@ -2836,7 +3061,12 @@ function addStop() {
   if (!ALL_ROUTES[currentYoil]) ALL_ROUTES[currentYoil] = {};
   if (!ALL_ROUTES[currentYoil][bus]) ALL_ROUTES[currentYoil][bus] = [];
   ROUTES = ALL_ROUTES[currentYoil];
-  ROUTES[bus].push({ place, detail, boardTime: board||null, alightTime: alight||null, lat, lng, students: [] });
+  // 학생 목록 스냅샷 (초기화 전에 미리 저장)
+  const studentNames = (_quickStudents || []).slice();
+  const newStudents = studentNames.map(name => ({ name, level: '', gender: '' }));
+  ROUTES[bus].push({ place, detail, boardTime: board||null, alightTime: alight||null, lat, lng, students: newStudents });
+  _quickStudents = [];
+  renderQuickStudents();
   ROUTES[bus].sort((a,b) => (a.boardTime||'99:99') < (b.boardTime||'99:99') ? -1 : 1);
 
   // Clear form
@@ -2844,6 +3074,21 @@ function addStop() {
   closeModal('addStop');
   selectBus(bus);
   saveToFirestore();
+
+  // 구글 시트에도 즉시 반영
+  sheetsWrite('addStop', {
+    bus, place, addr: detail,
+    boardTime: board || null,
+    alightTime: alight || null,
+    lat, lng,
+    yoil: currentYoil,
+    students: studentNames
+  }).then(ok => {
+    if (ok) {
+      setSyncStatus('ok');
+      setTimeout(() => fetchSheetData(), 4000);
+    }
+  });
 }
 
 // ── 정류장 편집 열기 ──
@@ -2874,12 +3119,45 @@ function saveEditStop() {
   const lng = parseFloat(document.getElementById('es-lng').value);
   if (!isNaN(lat)) stop.lat = lat;
   if (!isNaN(lng)) stop.lng = lng;
+  const origPlace = document.getElementById('es-origPlace')?.value || stop.place;
+  const snapPlace   = stop.place;
+  const snapDetail  = stop.detail;
+  const snapBoard   = stop.boardTime;
+  const snapAlight  = stop.alightTime;
+  const snapLat     = stop.lat;
+  const snapLng     = stop.lng;
+  const snapStudents = (stop.students || []).map(s => s.name);
+
   closeModal('editStop');
   selectBus(busNo);
   saveToFirestore();
+
+  // 구글 시트에도 편집 반영
+  sheetsWrite('editStop', {
+    bus: busNo, yoil: currentYoil,
+    origPlace,
+    place: snapPlace, addr: snapDetail,
+    boardTime: snapBoard || null,
+    alightTime: snapAlight || null,
+    lat: snapLat, lng: snapLng,
+    students: snapStudents
+  }).then(ok => { if (ok) setTimeout(() => fetchSheetData(), 4000); });
 }
 
 // ── 정류장 삭제 ──
+// 드래그앤드롭 순서 변경
+function dragMoveStop(fromIdx, toIdx) {
+  const route = ALL_ROUTES[currentYoil][currentBus];
+  if (!route) return;
+  const [moved] = route.splice(fromIdx, 1);
+  route.splice(toIdx, 0, moved);
+  ROUTES = ALL_ROUTES[currentYoil];
+  selectedStop = null;
+  saveToFirestore();
+  renderStopList();
+  renderMap();
+}
+
 function moveStop(busNo, stopIdx, dir) {
   const route = ALL_ROUTES[currentYoil][busNo];
   if (!route) return;
@@ -2897,11 +3175,17 @@ function deleteStop(busNo, stopIdx) {
   const stop = (ROUTES[busNo]||[])[stopIdx];
   if (!stop) return;
   if (!confirm(`"${stop.place}" 정류장을 삭제하시겠습니까?`)) return;
+  const delPlace = stop.place;
   ROUTES[busNo].splice(stopIdx, 1);
   selectedStop = null;
   selectBus(busNo);
   renderRightPanel(null);
   saveToFirestore();
+
+  // 구글 시트에서도 삭제
+  sheetsWrite('deleteStop', {
+    bus: busNo, place: delPlace, yoil: currentYoil
+  }).then(ok => { if (ok) setTimeout(() => fetchSheetData(), 4000); });
 }
 
 // ── 인원 관리 모달 열기 ──
@@ -3541,6 +3825,12 @@ window.addEventListener('load', () => {
   init();
 });
 </script>
+
+<!-- 지도 우클릭 컨텍스트 메뉴 -->
+<div id="mapContextMenu">
+  <div class="ctx-header" id="ctxCoords"></div>
+  <div class="ctx-item" onclick="openAddStopFromContext()">📍 이 위치에 정류장 추가</div>
+</div>
 
 <!-- 소요시간 계산 모달 -->
 <div class="modal-overlay" id="modal-routeTime">
