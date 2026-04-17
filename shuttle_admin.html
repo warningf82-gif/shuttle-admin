@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
@@ -82,6 +83,65 @@
     background: var(--surface);
     border-color: var(--accent);
     color: var(--text);
+  }
+  /* 엑셀 업로드 버튼 */
+  .excel-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid rgba(251,191,36,0.35);
+    background: rgba(251,191,36,0.08);
+    color: #fbbf24;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+  }
+  .excel-upload-btn:hover { background: rgba(251,191,36,0.18); border-color: #fbbf24; }
+  .excel-sample-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid rgba(148,163,184,0.3);
+    background: rgba(148,163,184,0.06);
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'Noto Sans KR', sans-serif;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .excel-sample-btn:hover { background: rgba(148,163,184,0.14); border-color: #94a3b8; color: #cbd5e1; }
+  #excelFileInput { display: none; }
+
+  .sheet-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid rgba(52,211,153,0.35);
+    background: rgba(52,211,153,0.08);
+    color: #34d399;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all .15s;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  .sheet-link-btn:hover {
+    background: rgba(52,211,153,0.18);
+    border-color: #34d399;
+    color: #6ee7b7;
   }
 
   /* 캠퍼스 선택 드롭다운 */
@@ -413,6 +473,41 @@
     cursor: pointer;
     color: var(--muted);
     transition: all 0.15s;
+  }
+  /* 등원/하원 토글 (사이드바 상단) */
+  .mode-toggle-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 10px;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 3px;
+    border: 1px solid var(--border);
+  }
+  .mode-toggle-btn {
+    flex: 1;
+    padding: 6px 0;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'Noto Sans KR', sans-serif;
+    text-align: center;
+  }
+  .mode-toggle-btn.active {
+    color: #fff;
+  }
+  .mode-toggle-btn.board.active {
+    background: #3b82f6;
+    box-shadow: 0 1px 6px rgba(59,130,246,0.4);
+  }
+  .mode-toggle-btn.alight.active {
+    background: #10b981;
+    box-shadow: 0 1px 6px rgba(16,185,129,0.4);
   }
   .mode-btn.active {
     background: var(--surface);
@@ -1125,6 +1220,16 @@
   <div class="topbar-campus campus-switcher" id="campusSwitcher" onclick="openCampusSwitch()" title="캠퍼스 전환">
     <span id="campusLabel">대치캠퍼스</span> <span style="font-size:9px;opacity:.6">▼</span>
   </div>
+  <a id="sheetLinkBtn" class="sheet-link-btn" href="#" target="_blank" title="연동된 스프레드시트 열기">
+    📊 시트 열기
+  </a>
+  <button class="excel-upload-btn" onclick="document.getElementById('excelFileInput').click()" title="엑셀 파일을 업로드해서 시트에 반영">
+    📤 엑셀 업로드
+  </button>
+  <a class="excel-sample-btn" id="excelSampleBtn" href="#" download="SHUTTLEOPS_노선양식.xlsx" title="예제 엑셀 파일 다운로드">
+    📥 양식 다운로드
+  </a>
+  <input type="file" id="excelFileInput" accept=".xlsx,.xls" onchange="handleExcelUpload(event)" />
   <div class="topbar-spacer"></div>
   <div style="display:flex;align-items:center;gap:8px;font-size:11px">
     <span id="syncStatus" style="color:var(--muted)">○ 내장 데이터 사용 중</span>
@@ -1149,11 +1254,12 @@
   <!-- LEFT SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-header">
+      <div class="mode-toggle-bar">
+        <button class="mode-toggle-btn board active" id="modeBtnBoard" onclick="switchMode('board')">🟦 등원</button>
+        <button class="mode-toggle-btn alight" id="modeBtnAlight" onclick="switchMode('alight')">🟩 하원</button>
+      </div>
       <div class="yoil-tabs-wrap" id="yoilTabs"></div>
       <div class="bus-tabs-new" id="busTabs"></div>
-      <div class="mode-toggle" style="justify-content:flex-start;padding:4px 2px">
-        <div class="mode-btn active" data-mode="board" style="cursor:default;opacity:1">🟦 등원 노선</div>
-      </div>
       <div class="action-row">
         <button class="action-btn" onclick="openModal('addBus')">＋ 호차 추가</button>
         <button class="action-btn" onclick="openModal('addStop')">＋ 정류장 추가</button>
@@ -1550,31 +1656,62 @@ const TMAP_KEY = 'zjk2IP7f081TP7qHntyd03bwHt7k5lQXK384eZGi';
 const SHEETS_WRITE_URL = 'https://script.google.com/macros/s/AKfycbz5kwqHA0EJFAj42b9PuLHGbhSYQ2YDYAnvWjWk2VIeMSvIqTcIgB9WA-xae3vOwTvu/exec'; // Apps Script 웹앱 — 시트 쓰기용
 
 // ── 캠퍼스 설정 ──
-const CAMPUS_LIST = {
-  '대치': {
-    name:      '대치캠퍼스',
-    sheetName: '대치',
-    lat:       37.5030,
-    lng:       127.0670,
-    addr:      '서울 강남구 영동대로 318',
-    color:     '#3b82f6',
-    firestoreDoc: 'routes',
-  },
-  '분당': {
-    name:      '분당캠퍼스',
-    sheetName: '분당',
-    lat:       37.36165,
-    lng:       127.11142,
-    addr:      '경기 성남시 분당구 성남대로 349 (시그마타워)',
-    color:     '#10b981',
-    firestoreDoc: 'routes_bundang',
-  },
-};
+// CAMPUS_LIST: let으로 선언 → 엑셀 업로드 시 동적 추가 가능
+let CAMPUS_LIST = (() => {
+  // localStorage에 저장된 추가 캠퍼스 복원
+  const base = {
+    '대치': {
+      name: '대치캠퍼스', sheetName: '대치',
+      lat: 37.5030, lng: 127.0670,
+      addr: '서울 강남구 영동대로 318',
+      color: '#3b82f6', firestoreDoc: 'routes',
+    },
+    '분당': {
+      name: '분당캠퍼스', sheetName: '분당',
+      lat: 37.36165, lng: 127.11142,
+      addr: '경기 성남시 분당구 성남대로 349 (시그마타워)',
+      color: '#10b981', firestoreDoc: 'routes_bundang',
+    },
+  };
+  try {
+    const extra = JSON.parse(localStorage.getItem('extraCampuses') || '{}');
+    Object.assign(base, extra);
+  } catch(e) {}
+  return base;
+})();
+
+// 동적 캠퍼스 색상 팔레트
+const CAMPUS_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+
+// 새 캠퍼스를 CAMPUS_LIST에 동적 추가 + localStorage 저장
+function addDynamicCampus(key) {
+  if (CAMPUS_LIST[key]) return; // 이미 존재
+  const colorIdx = Object.keys(CAMPUS_LIST).length % CAMPUS_COLORS.length;
+  const newCampus = {
+    name: key + '캠퍼스',
+    sheetName: key,
+    lat: 37.5665, lng: 126.9780, // 기본값: 서울 중심
+    addr: key + ' (주소 미입력)',
+    color: CAMPUS_COLORS[colorIdx],
+    firestoreDoc: 'routes_' + key.toLowerCase(),
+  };
+  CAMPUS_LIST[key] = newCampus;
+  // localStorage에 추가 캠퍼스 저장
+  try {
+    const extra = JSON.parse(localStorage.getItem('extraCampuses') || '{}');
+    // 기본 캠퍼스(대치/분당)는 저장 안 함
+    if (key !== '대치' && key !== '분당') {
+      extra[key] = newCampus;
+      localStorage.setItem('extraCampuses', JSON.stringify(extra));
+    }
+  } catch(e) {}
+  console.log('[Campus] 새 캠퍼스 추가:', key);
+}
 
 let currentCampusKey = localStorage.getItem('campusKey') || '대치';
 
 // 현재 캠퍼스 설정 getter (항상 최신 캠퍼스 반영)
-function getCampus() { return CAMPUS_LIST[currentCampusKey]; }
+function getCampus() { return CAMPUS_LIST[currentCampusKey] || CAMPUS_LIST['대치']; }
 
 let SHEET_ID   = '1augGfF4LsrrJuqDozNar0s0dj0V5f7evDCoAGaLR6CI';
 let SHEET_NAME = getCampus().sheetName;
@@ -1604,6 +1741,8 @@ const BUS_NAMES  = { '1': '1호차', '3': '3호차', '5': '5호차', '6': '6호�
 const CAMPUS = { get lat(){ return getCampus().lat; }, get lng(){ return getCampus().lng; }, get name(){ return getCampus().name; } };
 
 let map, currentBus = '1', currentMode = 'board', showRoute = true;
+let ALL_ROUTES_BOARD = {};   // 등원 기준 파싱 결과
+let ALL_ROUTES_ALIGHT = {};  // 하원 기준 파싱 결과
 let markers = [], routeLine = null, campusMarker = null;
 let selectedStop = null;
 let tmapRouteCache = {};  // cache: busNo+mode -> {coords, totalTime, totalDist}
@@ -1657,7 +1796,9 @@ function parseSheetRows(rawRows) {
   }
 
   rows.forEach(row => {
-    const busRaw  = row['승차'];
+    // mode: 'board'=등원(승차 컬럼), 'alight'=하원(하차 컬럼)
+    const mode    = arguments[1] || 'board';
+    const busRaw  = mode === 'alight' ? row['하차'] : row['승차'];
     const boardT  = row['등원시간'] || row['시간'];
     const alightT = row['하원시간'] || row['하차'];
     const place   = String(row['승하차 장소'] || row['승하차장소'] || row['장소'] || '').trim();
@@ -1804,9 +1945,16 @@ function fetchSheetData() {
         const parsed = parseSheetRows(rows);
 
         if (parsed && Object.keys(parsed).length > 0) {
-          ALL_ROUTES = parsed;
+          // 등원/하원 각각 파싱
+          const parsedBoard  = parsed; // 이미 board 기준으로 파싱됨
+          const parsedAlight = parseSheetRows(rows, 'alight');
+
+          ALL_ROUTES_BOARD  = parsedBoard;
+          ALL_ROUTES_ALIGHT = parsedAlight;
+          ALL_ROUTES = currentMode === 'alight' ? parsedAlight : parsedBoard;
+
           // 시트에서 가져온 요일 목록으로 동적 갱신 (원래 순서 유지)
-          const sheetYoils = Object.keys(parsed);
+          const sheetYoils = Object.keys(parsedBoard);
           // 유치부 → 월수금 계열 → 화목 계열 순으로 정렬
           const YOIL_ORDER = ['유치부', '월수금', '화목'];
           YOIL_LIST = sheetYoils.sort((a, b) => {
@@ -1914,6 +2062,16 @@ function init() {
 
   // 캠퍼스 UI 초기화
   updateCampusUI();
+  updateSheetLink();
+  // 예제 파일 다운로드 버튼 data URL 설정
+  (function() {
+    const b64 = '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';
+    const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))],
+      { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const btn = document.getElementById('excelSampleBtn');
+    if (btn) btn.href = url;
+  })();
 
   // 저장된 시트 ID 복원 (시트 이름은 캠퍼스 설정 우선)
   const saved = localStorage.getItem('sheetId');
@@ -1925,6 +2083,7 @@ function init() {
 
   // 로드 순서: Firestore(수정사항) → 구글시트(원본) → 화면 표시
   initMapContextMenu();
+  loadAvailableCampuses(); // 시트 목록 + 주소 로드
   fetchSheetData().then(sheetOk => {
     if (!sheetOk) { loadFromFirestore().then(fbOk => { if (!fbOk) loadFromLocal(); }); }
     // Firestore에서 최신 수정사항 덮어쓰기
@@ -2183,6 +2342,42 @@ function setMode(mode, el) {
   renderMap();
 }
 
+// 등원/하원 모드 전환
+function switchMode(mode) {
+  currentMode = mode;
+  // 버튼 UI 갱신
+  const bBtn = document.getElementById('modeBtnBoard');
+  const aBtn = document.getElementById('modeBtnAlight');
+  if (bBtn) bBtn.classList.toggle('active', mode === 'board');
+  if (aBtn) aBtn.classList.toggle('active', mode === 'alight');
+
+  // 모드에 맞는 데이터로 교체
+  if (mode === 'alight' && Object.keys(ALL_ROUTES_ALIGHT).length > 0) {
+    ALL_ROUTES = ALL_ROUTES_ALIGHT;
+  } else if (mode === 'board' && Object.keys(ALL_ROUTES_BOARD).length > 0) {
+    ALL_ROUTES = ALL_ROUTES_BOARD;
+  }
+
+  // currentYoil이 새 데이터에 없으면 첫 번째로 초기화
+  if (!ALL_ROUTES[currentYoil]) currentYoil = Object.keys(ALL_ROUTES)[0] || '유치부';
+  ROUTES = ALL_ROUTES[currentYoil] || {};
+  if (!ROUTES[currentBus]) currentBus = Object.keys(ROUTES)[0] || '1';
+
+  // T맵 캐시 초기화 (모드 전환 시)
+  tmapRouteCache = {};
+  resetTmapRow();
+
+  refreshUI();
+}
+
+// 스프레드시트 링크 버튼 업데이트
+function updateSheetLink() {
+  const btn = document.getElementById('sheetLinkBtn');
+  if (!btn) return;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=0`;
+  btn.href = url;
+}
+
 // ---- STOP LIST ----
 function renderStopList() {
   const route = ROUTES[currentBus] || [];
@@ -2396,16 +2591,19 @@ function openCampusSwitch() {
   dd.style.top  = (rect.bottom + 4) + 'px';
 
   // 옵션 렌더링
-  dd.innerHTML = Object.entries(CAMPUS_LIST).map(([key, c]) => `
-    <div class="campus-option${key === currentCampusKey ? ' active' : ''}"
-         onclick="selectCampus('${key}')">
-      <div class="campus-dot" style="background:${c.color}"></div>
-      <div class="campus-info">
-        <div class="campus-name">${c.name}</div>
-        <div class="campus-sheet">${c.addr}</div>
-      </div>
-      ${key === currentCampusKey ? '<span style="color:var(--accent);font-size:11px">✓</span>' : ''}
-    </div>`).join('');
+  const visibleCampuses = Object.entries(CAMPUS_LIST).filter(([k, c]) => !c._hidden);
+  dd.innerHTML = visibleCampuses.length
+    ? visibleCampuses.map(([key, c]) => `
+      <div class="campus-option${key === currentCampusKey ? ' active' : ''}"
+           onclick="selectCampus('${key}')">
+        <div class="campus-dot" style="background:${c.color}"></div>
+        <div class="campus-info">
+          <div class="campus-name">${c.name}</div>
+          <div class="campus-sheet">${c.addr || '주소 없음'}</div>
+        </div>
+        ${key === currentCampusKey ? '<span style="color:var(--accent);font-size:11px">✓</span>' : ''}
+      </div>`).join('')
+    : '<div style="padding:12px 16px;color:var(--muted);font-size:12px">사용 가능한 캠퍼스 없음</div>';
 
   dd.classList.toggle('open');
 
@@ -2434,6 +2632,7 @@ async function selectCampus(key) {
 
   // 시트 이름 변경
   SHEET_NAME = c.sheetName;
+  updateSheetLink();
 
   // 데이터 초기화
   ALL_ROUTES = JSON.parse(JSON.stringify(FALLBACK_ROUTES));
@@ -2441,7 +2640,20 @@ async function selectCampus(key) {
   resetTmapRow();
 
   // 지도 중심 이동
-  if (map) map.setView([c.lat, c.lng], 13);
+  // 좌표가 기본값(서울 중심)이면 geocoding 재시도
+  if (map) {
+    if (c.lat && c.lng) {
+      map.setView([c.lat, c.lng], 13);
+    } else if (c.addr) {
+      geocodeAddress(c.addr).then(coord => {
+        if (coord) {
+          c.lat = coord.lat; c.lng = coord.lng;
+          map.setView([c.lat, c.lng], 13);
+          if (campusMarker) campusMarker.setLatLng([c.lat, c.lng]);
+        }
+      });
+    }
+  }
   if (campusMarker) {
     campusMarker.setLatLng([c.lat, c.lng]);
     campusMarker.bindPopup(`<b style="color:${c.color}">🏫 ${c.name}</b><br><small style="color:#64748b">${c.addr}</small>`);
@@ -2949,6 +3161,117 @@ async function deleteBus() {
 }
 
 // ── 지도 클릭으로 좌표 선택 ──
+// ── 엑셀 업로드 → 구글 시트 반영 (캠퍼스 동적 생성 지원) ──
+async function handleExcelUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+
+  const data = await file.arrayBuffer();
+  const workbook = XLSX.read(data, { type: 'array', cellText: false, cellDates: false });
+
+  // 시트 탐색: '노선데이터' 시트 우선, 없으면 현재 캠퍼스 탭, 없으면 첫 번째
+  const wsName = workbook.SheetNames.find(n => n === '노선데이터')
+              || workbook.SheetNames.find(n => n === SHEET_NAME)
+              || workbook.SheetNames[0];
+  if (!wsName) { alert('업로드한 파일에서 시트를 찾을 수 없습니다.'); return; }
+
+  const ws = workbook.Sheets[wsName];
+  const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (rawRows.length < 2) { alert('데이터가 없습니다.'); return; }
+
+  // 헤더 행으로 캠퍼스 컬럼 위치 감지
+  const headerRow = rawRows[0].map(h => String(h).trim());
+  const campusColIdx = headerRow.findIndex(h => h === '캠퍼스');
+  const hasCampusCol = campusColIdx === 0; // 캠퍼스 컬럼이 첫 번째 열
+
+  // 데이터 시작 행 (안내주석 행 자동 감지)
+  let dataRows = rawRows.slice(1);
+  if (dataRows.length > 0) {
+    const firstVal = String(dataRows[0][hasCampusCol ? 1 : 0] || '').trim();
+    if (!firstVal || isNaN(parseInt(firstVal))) dataRows = dataRows.slice(1);
+  }
+  dataRows = dataRows.filter(r => r.some(c => c !== '' && c !== null && c !== undefined));
+  if (dataRows.length === 0) { alert('유효한 데이터 행이 없습니다.'); return; }
+
+  function normalizeTime(val) {
+    if (!val && val !== 0) return '';
+    if (typeof val === 'string' && /\d{1,2}:\d{2}/.test(val)) return val;
+    const f = parseFloat(val);
+    if (!isNaN(f) && f > 0 && f < 1) {
+      const totalMin = Math.round(f * 1440);
+      return String(Math.floor(totalMin/60)).padStart(2,'0') + ':' + String(totalMin%60).padStart(2,'0');
+    }
+    return String(val);
+  }
+
+  function normalizeCampus(name) {
+    return String(name || '').trim().replace(/캠퍼스$/, '').trim();
+  }
+
+  // 캠퍼스별로 행 분류
+  const campusRows = {}; // { '대치': [[...], ...], '일산': [[...], ...] }
+  dataRows.forEach(r => {
+    let campusKey, rowData;
+    if (hasCampusCol) {
+      campusKey = normalizeCampus(r[0]) || SHEET_NAME;
+      rowData = [r[1]||'', normalizeTime(r[2]), r[3]||'', normalizeTime(r[4]),
+                 r[5]||'', r[6]||'', r[7]||'', r[8]||'', r[9]||'', r[10]||''];
+    } else {
+      campusKey = SHEET_NAME; // 캠퍼스 컬럼 없으면 현재 캠퍼스로
+      rowData = [r[0]||'', normalizeTime(r[1]), r[2]||'', normalizeTime(r[3]),
+                 r[4]||'', r[5]||'', r[6]||'', r[7]||'', r[8]||'', r[9]||''];
+    }
+    if (!campusKey) return;
+    if (!campusRows[campusKey]) campusRows[campusKey] = [];
+    campusRows[campusKey].push(rowData);
+  });
+
+  const campusNames = Object.keys(campusRows);
+  const newCampuses = campusNames.filter(k => !CAMPUS_LIST[k]);
+  const totalRows = dataRows.length;
+
+  let confirmMsg = `${campusNames.join(', ')} (총 ${totalRows}행)을 업로드할까요?\n해당 캠퍼스 시트 데이터가 덮어씌워집니다.`;
+  if (newCampuses.length > 0) {
+    confirmMsg += `\n\n🆕 새 캠퍼스가 추가됩니다: ${newCampuses.join(', ')}`;
+  }
+
+  const ok = await showConfirm(confirmMsg, { title: '엑셀 업로드', okText: '업로드', danger: true });
+  if (!ok) return;
+
+  setSyncStatus('loading');
+
+  try {
+    const res = await fetch(SHEETS_WRITE_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'overwriteSheet', campusRows }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    const result = await res.json();
+    if (result.status !== 'ok') throw new Error(result.message);
+
+    // 새 캠퍼스 동적 추가
+    newCampuses.forEach(key => addDynamicCampus(key));
+
+    // 드롭다운 UI 갱신
+    updateCampusUI();
+    setSyncStatus('ok');
+
+    // 현재 캠퍼스가 업로드된 캠퍼스 중 하나면 재동기화
+    if (campusNames.includes(SHEET_NAME)) {
+      setTimeout(() => fetchSheetData(), 2000);
+    }
+
+    const newCampusMsg = newCampuses.length > 0
+      ? `\n🆕 새 캠퍼스 추가됨: ${newCampuses.join(', ')} (상단 드롭다운에서 전환 가능)`
+      : '';
+    alert(`✅ ${result.message}${newCampusMsg}`);
+  } catch(e) {
+    setSyncStatus('error', '업로드 실패');
+    alert('❌ 업로드 오류: ' + e.message);
+  }
+}
+
 // ── 커스텀 confirm 다이얼로그 ──
 let _confirmResolve = null;
 
@@ -2966,6 +3289,97 @@ function showConfirm(msg, { title = '확인', okText = '확인', danger = true }
       resolve(result);
     };
   });
+}
+
+// ── T맵 주소 → 좌표 변환 ──
+async function geocodeAddress(addr) {
+  try {
+    const url = `https://apis.openapi.sk.com/tmap/geo/fullAddrGeo?version=1&format=json&coordType=WGS84GEO&fullAddr=${encodeURIComponent(addr)}`;
+    const res = await fetch(url, { headers: { appKey: TMAP_KEY } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const item = data?.coordinateInfo?.coordinate?.[0];
+    if (!item) return null;
+    return { lat: parseFloat(item.newLat || item.lat), lng: parseFloat(item.newLon || item.lon) };
+  } catch(e) {
+    console.warn('[Geocode] 실패:', addr, e);
+    return null;
+  }
+}
+
+// ── 스프레드시트에서 사용 가능한 캠퍼스 목록 로드 ──
+// 조건: '캠퍼스별주소' 시트에 등록 AND 실제 노선 시트 탭이 존재
+async function loadAvailableCampuses() {
+  try {
+    const url = SHEETS_WRITE_URL + '?action=getAvailableCampuses';
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message);
+
+    const { sheets, campusInfo } = data;
+    console.log('[Campus] 시트 탭:', sheets, '/ 주소 정보:', Object.keys(campusInfo));
+
+    // 노선 시트가 있는 캠퍼스만 처리
+    for (const sheetName of sheets) {
+      const info = campusInfo[sheetName];
+      if (!info) continue; // 캠퍼스별주소에 없으면 스킵
+
+      if (!CAMPUS_LIST[sheetName]) {
+        // 새 캠퍼스 기본 등록
+        addDynamicCampus(sheetName);
+      }
+
+      // 이름/주소 업데이트
+      CAMPUS_LIST[sheetName].name = info.name || sheetName + '캠퍼스';
+      CAMPUS_LIST[sheetName].addr = info.addr || '';
+
+      // 좌표가 없으면 T맵으로 geocoding
+      const c = CAMPUS_LIST[sheetName];
+      const hasCoord = c.lat && c.lng &&
+                       !(c.lat === 37.5665 && c.lng === 126.9780); // 기본값 체크
+      if (!hasCoord && info.addr) {
+        console.log('[Geocode] 주소 변환 중:', info.addr);
+        const coord = await geocodeAddress(info.addr);
+        if (coord) {
+          CAMPUS_LIST[sheetName].lat = coord.lat;
+          CAMPUS_LIST[sheetName].lng = coord.lng;
+          console.log('[Geocode] 완료:', sheetName, coord);
+          // localStorage 갱신
+          try {
+            const extra = JSON.parse(localStorage.getItem('extraCampuses') || '{}');
+            if (sheetName !== '대치' && sheetName !== '분당') {
+              extra[sheetName] = CAMPUS_LIST[sheetName];
+              localStorage.setItem('extraCampuses', JSON.stringify(extra));
+            }
+          } catch(e) {}
+        }
+      }
+    }
+
+    // 기본 캠퍼스(대치/분당)는 campusInfo에 있으면 주소 업데이트
+    for (const [key, info] of Object.entries(campusInfo)) {
+      if (CAMPUS_LIST[key] && info.addr) {
+        CAMPUS_LIST[key].addr = info.addr;
+        if (info.name) CAMPUS_LIST[key].name = info.name;
+      }
+    }
+
+    // 드롭다운에 표시할 캠퍼스 = campusInfo에 있고 sheets에도 있는 것 + 기본 캠퍼스
+    const availableKeys = new Set([
+      ...Object.keys(campusInfo).filter(k => sheets.includes(k)),
+      '대치', '분당' // 기본 캠퍼스는 항상 표시
+    ]);
+
+    // CAMPUS_LIST에서 표시 불가 캠퍼스 숨김 처리 (hidden 플래그)
+    for (const key of Object.keys(CAMPUS_LIST)) {
+      CAMPUS_LIST[key]._hidden = !availableKeys.has(key);
+    }
+
+    updateCampusUI();
+    console.log('[Campus] 로드 완료. 표시 가능:', [...availableKeys]);
+  } catch(e) {
+    console.warn('[Campus] 목록 로드 실패 (폴백 유지):', e);
+  }
 }
 
 // ── 지도 우클릭 컨텍스트 메뉴 ──
