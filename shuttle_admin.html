@@ -545,7 +545,7 @@
   }
   .stop-body-btn {
     flex: 1;
-    padding: 5px;
+    padding: 5px 4px;
     border-radius: 5px;
     border: 1px solid var(--border);
     background: var(--surface);
@@ -555,6 +555,8 @@
     font-family: 'Noto Sans KR', sans-serif;
     text-align: center;
     transition: all .12s;
+    white-space: nowrap;
+    overflow: hidden;
   }
   .stop-body-btn:hover { background: var(--surface2); color: var(--text); }
   .stop-body-btn.danger:hover { background: rgba(239,68,68,.15); color: var(--danger); border-color: rgba(239,68,68,.3); }
@@ -2224,8 +2226,6 @@ function renderStopList() {
         ${stuCount ? `<div class="stop-students-wrap">${stop.students.map(s=>`<span class="student-chip-new">${s.name}</span>`).join('')}</div>` : ''}
 
         <div class="stop-body-actions">
-          <button class="stop-body-btn" onclick="event.stopPropagation();moveStop('${currentBus}',${realIdx},-1)">▲ 위로</button>
-          <button class="stop-body-btn" onclick="event.stopPropagation();moveStop('${currentBus}',${realIdx},1)">▼ 아래로</button>
           <button class="stop-body-btn" onclick="event.stopPropagation();openManageStudents('${currentBus}',${realIdx})">👥 학생</button>
           <button class="stop-body-btn" onclick="event.stopPropagation();openEditStop('${currentBus}',${realIdx})">✏ 편집</button>
           <button class="stop-body-btn danger" onclick="event.stopPropagation();deleteStop('${currentBus}',${realIdx})">✕ 삭제</button>
@@ -2732,10 +2732,10 @@ function openKakaoMaps() {
 // ── 소요시간 계산 (T맵 실제 도로 기반) ──
 async function calcRouteTime() {
   const route = (ROUTES[currentBus] || []).filter(s => s.lat);
+  // 좌표(lat)만 있으면 T맵 경로에 포함 — 시간 없는 정류장(우클릭 추가 등)도 포함
   let filtered = [...route];
-  filtered = filtered.filter(s => s.boardTime || s.alightTime);
 
-  const allPts = [...filtered, { lat: CAMPUS.lat, lng: CAMPUS.lng, place: '대치캠퍼스' }];
+  const allPts = [...filtered, { lat: CAMPUS.lat, lng: CAMPUS.lng, place: getCampus().name }];
   if (allPts.length < 2) { alert('정류장이 부족합니다.'); return; }
 
   const color = BUS_COLORS[currentBus] || '#888';
@@ -2846,11 +2846,12 @@ function showRouteTimeModal(totalTime, totalDist, filtered, color, isTmap, segRe
 }
 
 // ── 호차 변경 ──
-function changeStopBus(stopIdx, newBus) {
+async function changeStopBus(stopIdx, newBus) {
   if (!newBus || newBus === currentBus) return;
   const stop = (ROUTES[currentBus] || [])[stopIdx];
   if (!stop) return;
-  if (!confirm(`"${stop.place}"을 ${newBus}호차로 이동하시겠습니까?`)) return;
+  const ok = await showConfirm(`"${stop.place}"을 ${newBus}호차로 이동할까요?`, { title: "호차 이동", okText: "이동", danger: false });
+  if (!ok) return;
   if (!ALL_ROUTES[currentYoil][newBus]) ALL_ROUTES[currentYoil][newBus] = [];
   ALL_ROUTES[currentYoil][newBus].push(JSON.parse(JSON.stringify(stop)));
   ALL_ROUTES[currentYoil][newBus].sort((a,b) => (a.boardTime||'99:99') < (b.boardTime||'99:99') ? -1 : 1);
@@ -2931,10 +2932,11 @@ function addBus() {
 
 // ── 호차 삭제 ──
 function openDeleteBusModal() { openModal('deleteBus'); }
-function deleteBus() {
+async function deleteBus() {
   const bus = document.getElementById('db-bus').value;
   if (!bus) return;
-  if (!confirm(`${bus}호차를 정말 삭제하시겠습니까?`)) return;
+  const ok = await showConfirm(`${bus}호차를 삭제할까요? (정류장 전체 포함)`, { title: '호차 삭제', okText: '삭제' });
+  if (!ok) return;
   delete ALL_ROUTES[currentYoil][bus];
   ROUTES = ALL_ROUTES[currentYoil];
   delete BUS_COLORS[bus];
@@ -2947,6 +2949,25 @@ function deleteBus() {
 }
 
 // ── 지도 클릭으로 좌표 선택 ──
+// ── 커스텀 confirm 다이얼로그 ──
+let _confirmResolve = null;
+
+function showConfirm(msg, { title = '확인', okText = '확인', danger = true } = {}) {
+  return new Promise(resolve => {
+    document.getElementById('confirm-msg').textContent = msg;
+    document.getElementById('confirm-title').textContent = title;
+    const okBtn = document.getElementById('confirm-ok-btn');
+    okBtn.textContent = okText;
+    okBtn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+    document.getElementById('modal-confirm').classList.add('open');
+    _confirmResolve = (result) => {
+      document.getElementById('modal-confirm').classList.remove('open');
+      _confirmResolve = null;
+      resolve(result);
+    };
+  });
+}
+
 // ── 지도 우클릭 컨텍스트 메뉴 ──
 let _ctxLatLng = null;
 let _quickStudents = [];
@@ -3071,6 +3092,9 @@ function addStop() {
 
   // Clear form
   ['as-place','as-detail','as-board','as-alight','as-lat','as-lng'].forEach(id => document.getElementById(id).value = '');
+  // 해당 호차 T맵 캐시 삭제 → 새 정류장 포함해서 재계산되도록
+  delete tmapRouteCache[bus + '_board'];
+  delete tmapRouteCache[bus + '_alight'];
   closeModal('addStop');
   selectBus(bus);
   saveToFirestore();
@@ -3153,9 +3177,13 @@ function dragMoveStop(fromIdx, toIdx) {
   route.splice(toIdx, 0, moved);
   ROUTES = ALL_ROUTES[currentYoil];
   selectedStop = null;
+  // 순서 바뀌면 T맵 경로도 무효화
+  delete tmapRouteCache[currentBus + '_board'];
+  delete tmapRouteCache[currentBus + '_alight'];
   saveToFirestore();
   renderStopList();
   renderMap();
+  resetTmapRow();
 }
 
 function moveStop(busNo, stopIdx, dir) {
@@ -3171,13 +3199,16 @@ function moveStop(busNo, stopIdx, dir) {
   renderMap();
 }
 
-function deleteStop(busNo, stopIdx) {
+async function deleteStop(busNo, stopIdx) {
   const stop = (ROUTES[busNo]||[])[stopIdx];
   if (!stop) return;
-  if (!confirm(`"${stop.place}" 정류장을 삭제하시겠습니까?`)) return;
+  const ok = await showConfirm(`"${stop.place}" 정류장을 삭제할까요?`, { title: "정류장 삭제", okText: "삭제" });
+  if (!ok) return;
   const delPlace = stop.place;
   ROUTES[busNo].splice(stopIdx, 1);
   selectedStop = null;
+  delete tmapRouteCache[busNo + '_board'];
+  delete tmapRouteCache[busNo + '_alight'];
   selectBus(busNo);
   renderRightPanel(null);
   saveToFirestore();
@@ -3238,11 +3269,12 @@ function addStudent() {
 }
 
 // ── 학생 삭제 ──
-function removeStudent(idx) {
+async function removeStudent(idx) {
   if (!_managingStop) return;
   const { busNo, stopIdx } = _managingStop;
   const s = ROUTES[busNo][stopIdx].students[idx];
-  if (!confirm(`"${s.name}"을(를) 삭제하시겠습니까?`)) return;
+  const ok = await showConfirm(`"${s.name}"을(를) 삭제할까요?`, { title: "학생 삭제", okText: "삭제" });
+  if (!ok) return;
   ROUTES[busNo][stopIdx].students.splice(idx, 1);
   renderStudentList();
   renderStopList();
@@ -3258,7 +3290,7 @@ function setupModals() {
 }
 
 // ── 로컬 저장 (브라우저 새로고침 후에도 유지) ──
-function saveToFirestore() {
+function saveToLocal() {
   try {
     localStorage.setItem('shuttleAllRoutes', JSON.stringify(ALL_ROUTES));
     localStorage.setItem('shuttleColors', JSON.stringify(BUS_COLORS));
@@ -3285,44 +3317,46 @@ function saveSlots(slots) {
   localStorage.setItem('shuttleSlots', JSON.stringify(slots));
   saveSlotsFirestore(slots); // Firestore에도 동기화
 }
-function openSaveSlotModal() {
+async function openSaveSlotModal() {
   const name = prompt('저장 이름을 입력하세요 (예: 최적화_0413)');
   if (!name || !name.trim()) return;
-  getSavedSlotsFirestore().then(slots => {
-    const key = name.trim();
-    const keys = Object.keys(slots);
-    // 새 슬롯이고 이미 20개면 저장 불가
-    if (!slots[key] && keys.length >= 20) {
-      alert('슬롯은 최대 20개까지 저장할 수 있습니다.\n기존 슬롯을 삭제 후 다시 시도해주세요.');
-      return;
-    }
-    if (slots[key] && !confirm(`"${key}" 슬롯이 이미 있습니다. 덮어쓸까요?`)) return;
-    slots[key] = {
-      name: key,
-      savedAt: new Date().toLocaleString('ko-KR'),
-      routes: JSON.parse(JSON.stringify(ALL_ROUTES)),
-      colors: JSON.parse(JSON.stringify(BUS_COLORS))
-    };
-    saveSlots(slots);
-    renderSlotList();
-    alert(`✅ "${key}" 로 저장됐습니다.`);
-  });
+  const key = name.trim();
+  const slots = await getSavedSlotsFirestore();
+  const keys = Object.keys(slots);
+  if (!slots[key] && keys.length >= 20) {
+    alert('슬롯은 최대 20개까지 저장할 수 있습니다.\n기존 슬롯을 삭제 후 다시 시도해주세요.');
+    return;
+  }
+  if (slots[key]) {
+    const ok = await showConfirm(`"${key}" 슬롯이 이미 있습니다. 덮어쓸까요?`, { title: '슬롯 저장', okText: '덮어쓰기', danger: false });
+    if (!ok) return;
+  }
+  slots[key] = {
+    name: key,
+    savedAt: new Date().toLocaleString('ko-KR'),
+    routes: JSON.parse(JSON.stringify(ALL_ROUTES)),
+    colors: JSON.parse(JSON.stringify(BUS_COLORS))
+  };
+  saveSlots(slots);
+  renderSlotList();
+  alert(`✅ "${key}" 로 저장됐습니다.`);
 }
-function loadSlot(key) {
-  getSavedSlotsFirestore().then(slots => {
-    const slot = slots[key];
-    if (!slot) return;
-    if (!confirm(`"${slot.name}" 슬롯을 불러올까요?\n현재 화면이 해당 배분으로 교체됩니다.`)) return;
-    ALL_ROUTES = JSON.parse(JSON.stringify(slot.routes));
-    Object.assign(BUS_COLORS, slot.colors);
-    ROUTES = ALL_ROUTES[currentYoil] || {};
-    refreshUI();
-    saveToFirestore();
-    alert(`✅ "${slot.name}" 불러오기 완료`);
-  });
+async function loadSlot(key) {
+  const slots = await getSavedSlotsFirestore();
+  const slot = slots[key];
+  if (!slot) return;
+  const ok = await showConfirm(`"${slot.name}" 슬롯을 불러올까요? 현재 화면이 교체됩니다.`, { title: '슬롯 불러오기', okText: '불러오기', danger: false });
+  if (!ok) return;
+  ALL_ROUTES = JSON.parse(JSON.stringify(slot.routes));
+  Object.assign(BUS_COLORS, slot.colors);
+  ROUTES = ALL_ROUTES[currentYoil] || {};
+  refreshUI();
+  saveToFirestore();
+  alert(`✅ "${slot.name}" 불러오기 완료`);
 }
-function deleteSlot(key) {
-  if (!confirm(`"${key}" 슬롯을 삭제할까요?`)) return;
+async function deleteSlot(key) {
+  const ok = await showConfirm(`"${key}" 슬롯을 삭제할까요?`, { title: "슬롯 삭제", okText: "삭제" });
+  if (!ok) return;
   getSavedSlotsFirestore().then(slots => {
     delete slots[key];
     saveSlots(slots);
@@ -3337,8 +3371,9 @@ function openSlotModal() {
   if (nameEl) nameEl.value = SHEET_NAME || '2026';
   document.getElementById('modal-slots').classList.add('open');
 }
-function restoreFromSheet() {
-  if (!confirm('구글 시트 원본으로 복구할까요?\n현재 배분이 시트 데이터로 교체됩니다.')) return;
+async function restoreFromSheet() {
+  const ok = await showConfirm('구글 시트 원본으로 복구할까요? 현재 배분이 시트 데이터로 교체됩니다.', { title: '원본 복구', okText: '복구', danger: false });
+  if (!ok) return;
   fetchSheetData().then(ok => {
     if (ok) {
       saveToFirestore(); // 복구된 데이터를 Firestore에도 저장
@@ -3769,9 +3804,10 @@ function previewCompareOnMap() {
   }
 }
 
-function applyOptimization() {
+async function applyOptimization() {
   if (!_optimizedResult) return;
-  if (!confirm('최적화된 배분을 현재 데이터에 적용하시겠습니까?\n현재 배분은 덮어써집니다.')) return;
+  const ok = await showConfirm('최적화된 배분을 현재 데이터에 적용할까요? 현재 배분은 덮어써집니다.', { title: '최적화 적용', okText: '적용' });
+  if (!ok) return;
 
   const { result, timeFilter } = _optimizedResult;
   const newBuses = {};
@@ -3830,6 +3866,23 @@ window.addEventListener('load', () => {
 <div id="mapContextMenu">
   <div class="ctx-header" id="ctxCoords"></div>
   <div class="ctx-item" onclick="openAddStopFromContext()">📍 이 위치에 정류장 추가</div>
+</div>
+
+<!-- 커스텀 confirm 모달 -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal" style="width:360px;max-width:92vw;">
+    <div class="modal-header">
+      <div class="modal-title" id="confirm-title">확인</div>
+      <button class="modal-close" onclick="_confirmResolve(false)">×</button>
+    </div>
+    <div class="modal-body" style="padding:20px;">
+      <p id="confirm-msg" style="font-size:14px;color:var(--text);line-height:1.6;margin:0;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="_confirmResolve(false)">취소</button>
+      <button class="btn btn-danger" id="confirm-ok-btn" onclick="_confirmResolve(true)">확인</button>
+    </div>
+  </div>
 </div>
 
 <!-- 소요시간 계산 모달 -->
