@@ -84,6 +84,25 @@
     border-color: var(--accent);
     color: var(--text);
   }
+  /* 캠퍼스 추가 버튼 */
+  .campus-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid rgba(168,85,247,0.35);
+    background: rgba(168,85,247,0.08);
+    color: #c084fc;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+  }
+  .campus-add-btn:hover { background: rgba(168,85,247,0.18); border-color: #c084fc; }
+
   /* 엑셀 업로드 버튼 */
   .excel-upload-btn {
     display: inline-flex;
@@ -1210,30 +1229,74 @@
   .stop-bus-change {
     margin-top: 5px;
   }
+
+  /* ── 커스텀 툴팁 (fixed 방식 — overflow:hidden 부모에서도 작동) ── */
+  #globalTooltip {
+    position: fixed;
+    z-index: 99999;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'Noto Sans KR', sans-serif;
+    line-height: 1.6;
+    white-space: pre-line;
+    text-align: center;
+    padding: 7px 11px;
+    border-radius: 7px;
+    border: 1px solid #334155;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    max-width: 200px;
+  }
+  #globalTooltip.visible { opacity: 1; }
+  #globalTooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #334155;
+  }
+
 </style>
 </head>
 <body>
+<div id="globalTooltip"></div>
 
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="topbar-logo">🚌 ShuttleOps</div>
-  <div class="topbar-campus campus-switcher" id="campusSwitcher" onclick="openCampusSwitch()" title="캠퍼스 전환">
+  <div class="topbar-campus campus-switcher tt" id="campusSwitcher" onclick="openCampusSwitch()" data-tip="캠퍼스 전환
+노선 데이터가 해당
+캠퍼스로 교체됩니다">
     <span id="campusLabel">대치캠퍼스</span> <span style="font-size:9px;opacity:.6">▼</span>
   </div>
-  <a id="sheetLinkBtn" class="sheet-link-btn" href="#" target="_blank" title="연동된 스프레드시트 열기">
+  <a id="sheetLinkBtn" class="sheet-link-btn tt" href="#" target="_blank" data-tip="구글 스프레드시트
+새 탭으로 열기">
     📊 시트 열기
   </a>
-  <button class="excel-upload-btn" onclick="document.getElementById('excelFileInput').click()" title="엑셀 파일을 업로드해서 시트에 반영">
+  <button class="excel-upload-btn tt" onclick="document.getElementById('excelFileInput').click()" data-tip="엑셀 파일 업로드
+시트에 노선 데이터를
+일괄 반영합니다">
     📤 엑셀 업로드
   </button>
-  <a class="excel-sample-btn" id="excelSampleBtn" href="#" download="SHUTTLEOPS_노선양식.xlsx" title="예제 엑셀 파일 다운로드">
+  <a class="excel-sample-btn tt" id="excelSampleBtn" href="#" download="SHUTTLEOPS_노선양식.xlsx" data-tip="노선 작성 양식 다운로드
+예제 데이터 포함">
     📥 양식 다운로드
   </a>
   <input type="file" id="excelFileInput" accept=".xlsx,.xls" onchange="handleExcelUpload(event)" />
+  <button class="campus-add-btn tt" onclick="openAddCampusModal()" data-tip="새 캠퍼스 추가&#10;캠퍼스별주소 시트 기준">
+    🏫 캠퍼스 추가
+  </button>
   <div class="topbar-spacer"></div>
   <div style="display:flex;align-items:center;gap:8px;font-size:11px">
     <span id="syncStatus" style="color:var(--muted)">○ 내장 데이터 사용 중</span>
-    <button onclick="fetchSheetData()" title="시트 새로고침"
+    <button onclick="fetchSheetData()" class="tt" data-tip="구글 시트
+즉시 동기화"
       style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);
       padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer;font-family:Noto Sans KR,sans-serif">↺</button>
   </div>
@@ -1255,15 +1318,21 @@
   <div class="sidebar">
     <div class="sidebar-header">
       <div class="mode-toggle-bar">
-        <button class="mode-toggle-btn board active" id="modeBtnBoard" onclick="switchMode('board')">🟦 등원</button>
-        <button class="mode-toggle-btn alight" id="modeBtnAlight" onclick="switchMode('alight')">🟩 하원</button>
+        <button class="mode-toggle-btn board active tt" id="modeBtnBoard" onclick="switchMode('board')" data-tip="등원: 승차 호차 기준
+탑승 정류장 표시">🟦 등원</button>
+        <button class="mode-toggle-btn alight tt" id="modeBtnAlight" onclick="switchMode('alight')" data-tip="하원: 하차 호차 기준
+하차 정류장 표시">🟩 하원</button>
       </div>
       <div class="yoil-tabs-wrap" id="yoilTabs"></div>
       <div class="bus-tabs-new" id="busTabs"></div>
       <div class="action-row">
-        <button class="action-btn" onclick="openModal('addBus')">＋ 호차 추가</button>
-        <button class="action-btn" onclick="openModal('addStop')">＋ 정류장 추가</button>
-        <button class="action-btn danger" onclick="openDeleteBusModal()">🗑 호차 삭제</button>
+        <button class="action-btn tt" onclick="openModal('addBus')" data-tip="새 호차 번호와
+색상을 설정해서 추가">＋ 호차 추가</button>
+        <button class="action-btn tt" onclick="openModal('addStop')" data-tip="정류장 이름·시간·좌표
+입력 또는 지도 클릭으로 추가
+(지도 우클릭도 가능)">＋ 정류장 추가</button>
+        <button class="action-btn danger tt" onclick="openDeleteBusModal()" data-tip="현재 선택된 호차와
+소속 정류장 전체 삭제">🗑 호차 삭제</button>
       </div>
     </div>
     <div class="stop-list" id="stopList"></div>
@@ -1319,11 +1388,18 @@
 
       <!-- ▌버튼 영역 (우측 정렬) -->
       <div class="map-actions">
-        <button class="map-btn tmap-btn" id="btnCalcTime" onclick="calcRouteTime()">⏱ T맵 경로계산</button>
-        <button class="map-btn" id="btnAllRoutes" onclick="toggleAllRoutes()">🗺 전체 노선</button>
-        <button class="map-btn" id="btnOptimize" onclick="openOptimizer()">🔀 경로 최적화</button>
-        <button class="map-btn" onclick="restoreFromSheet()" style="color:#34d399">↺ 원본으로 복구</button>
-        <button class="map-btn" onclick="openSlotModal()">📁 저장소</button>
+        <button class="map-btn tmap-btn tt" id="btnCalcTime" onclick="calcRouteTime()" data-tip="T맵 실제 도로 기준
+소요시간·거리 계산
+계산 후 재클릭 시 결과 표시">⏱ T맵 경로계산</button>
+        <button class="map-btn tt" id="btnAllRoutes" onclick="toggleAllRoutes()" data-tip="모든 호차 노선을
+지도에 동시 표시">🗺 전체 노선</button>
+        <button class="map-btn tt" id="btnOptimize" onclick="openOptimizer()" data-tip="학생 위치 기반
+호차 자동 재배분">🔀 경로 최적화</button>
+        <button class="map-btn tt" onclick="restoreFromSheet()" style="color:#34d399" data-tip="구글 시트 최신 데이터로
+되돌립니다
+(수동 편집 취소)">↺ 원본으로 복구</button>
+        <button class="map-btn tt" onclick="openSlotModal()" data-tip="현재 노선 상태 저장/불러오기
+최대 20개 슬롯">📁 저장소</button>
       </div>
     </div>
 
@@ -1413,20 +1489,12 @@
           <input class="field-input" id="as-alight" type="time" placeholder="15:30" />
         </div>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <div class="field-label">위도</div>
-          <input class="field-input" id="as-lat" type="number" step="0.0001" placeholder="37.4940" />
-        </div>
-        <div class="field">
-          <div class="field-label">경도</div>
-          <input class="field-input" id="as-lng" type="number" step="0.0001" placeholder="127.0617" />
-        </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:-6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>📍 좌표는 주소 입력 시 자동 변환 · 지도 클릭으로도 설정 가능</span>
+        <button onclick="startMapPick()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap" id="btnMapPick">🗺 지도에서 선택</button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:-6px">
-        💡 지도를 클릭해서 좌표를 자동으로 가져올 수 있어요
-        <button onclick="startMapPick()" style="margin-left:6px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;" id="btnMapPick">🗺 지도에서 선택</button>
-      </div>
+      <input type="hidden" id="as-lat" />
+      <input type="hidden" id="as-lng" />
       <div class="field" style="margin-top:14px">
         <div class="field-label">탑승 학생 (선택)</div>
         <div style="display:flex;gap:6px;margin-bottom:6px">
@@ -1974,8 +2042,14 @@ function fetchSheetData() {
           console.log('[gviz] 파싱 성공 — 요일:', YOIL_LIST, '/ SHEET_NAME:', SHEET_NAME);
           resolve(true);
         } else {
-          const sampleRow = Object.keys(rows[0] || {});
-          throw new Error('데이터 파싱 실패 — 컬럼명: ' + JSON.stringify(sampleRow).substring(0, 120));
+          // 빈 시트 또는 데이터 없음 — 신규 캠퍼스면 정상 (에러 아님)
+          ALL_ROUTES_BOARD = {}; ALL_ROUTES_ALIGHT = {}; ALL_ROUTES = {};
+          YOIL_LIST = ['유치부']; currentYoil = '유치부'; ROUTES = {};
+          lastSyncTime = new Date();
+          setSyncStatus('ok');
+          refreshUI();
+          console.log('[gviz] 빈 시트 — 신규 캠퍼스 또는 데이터 없음:', SHEET_NAME);
+          resolve(true);
         }
       } catch(e) {
         console.error('Sheet sync error:', e);
@@ -2037,6 +2111,7 @@ function refreshUI() {
 
 // ---- INIT ----
 function init() {
+  initTooltip();
   setupClock();
   setupTopStats();
   setupLegend();
@@ -2045,6 +2120,14 @@ function init() {
 
   map = L.map('map', { zoomControl: false, attributionControl: false })
     .setView([CAMPUS.lat, CAMPUS.lng], 15);
+
+  // 사용자가 직접 줌/이동하면 자동 fitBounds 비활성화
+  let _userMovedMap = false;
+  map.on('zoomstart', e => { if (e.originalEvent) _userMovedMap = true; });
+  map.on('dragstart',  ()  => { _userMovedMap = true; });
+  // 호차/요일 전환 시 자동 맞춤 다시 허용
+  window._resetMapFit = () => { _userMovedMap = false; };
+  window._userMovedMap = () => _userMovedMap;
   // Vworld 타일 — 국토교통부 공식 한국 지도, 아파트/건물명 표시
   L.tileLayer('https://api.vworld.kr/req/wmts/1.0.0/44902864-CE12-346A-8F22-FFE9B932713D/Base/{z}/{y}/{x}.png', {
     attribution: '&copy; 브이월드',
@@ -2094,6 +2177,58 @@ function init() {
       startAutoSync();
       startRealtimeSync(); // 다른 사람 수정 실시간 반영
     });
+  });
+}
+
+// ── 전역 툴팁 (fixed 위치 — overflow:hidden 부모에서도 작동) ──
+function initTooltip() {
+  const tip = document.getElementById('globalTooltip');
+  if (!tip) return;
+  let timer = null;
+
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]');
+    if (!el) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const raw = el.getAttribute('data-tip');
+      if (!raw) return;
+      // &#10; → 실제 줄바꿈으로 변환
+      tip.textContent = raw.replace(/&#10;/g, '\n');
+      const rect = el.getBoundingClientRect();
+      tip.classList.remove('visible');
+      requestAnimationFrame(() => {
+        const tw = tip.offsetWidth;
+        const th = tip.offsetHeight;
+        let left = rect.left + rect.width / 2 - tw / 2;
+        let top  = rect.top - th - 12;
+        if (left < 8) left = 8;
+        if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
+        if (top < 8) top = rect.bottom + 10;
+        tip.style.left = left + 'px';
+        tip.style.top  = top  + 'px';
+        tip.classList.add('visible');
+      });
+    }, 350);
+  });
+
+  document.addEventListener('mouseout', e => {
+    const el = e.target.closest('[data-tip]');
+    if (!el) return;
+    clearTimeout(timer);
+    tip.classList.remove('visible');
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!e.target.closest('[data-tip]')) {
+      clearTimeout(timer);
+      tip.classList.remove('visible');
+    }
+  });
+
+  document.addEventListener('click', () => {
+    clearTimeout(timer);
+    tip.classList.remove('visible');
   });
 }
 
@@ -2187,6 +2322,7 @@ function setupYoilTabs() {
 }
 
 function selectYoil(yoil) {
+  window._resetMapFit?.(); // 요일 바뀌면 자동 맞춤 허용
   currentYoil = yoil;
   ROUTES = ALL_ROUTES[currentYoil] || {};
   selectedStop = null;
@@ -2286,6 +2422,7 @@ function connectSheet() {
 
 // ---- BUS SELECTION ----
 function selectBus(bus) {
+  if (bus !== currentBus) window._resetMapFit?.(); // 호차 바뀌면 자동 맞춤 허용
   currentBus = bus;
   selectedStop = null;
   // T맵 행 UI 리셋 (캐시는 유지 — 재선택 시 바로 표시)
@@ -2794,7 +2931,7 @@ function renderMap() {
   if (showRoute && latlngs.length > 1) {
     routeLine = L.polyline(latlngs, {color, weight:3, opacity:0.5, dashArray:'6,4'}).addTo(map);
   }
-  if (latlngs.length > 0) {
+  if (latlngs.length > 0 && !window._userMovedMap?.()) {
     map.fitBounds(L.latLngBounds([...latlngs, [CAMPUS.lat, CAMPUS.lng]]).pad(0.1), { maxZoom: 15 });
   }
 }
@@ -3111,7 +3248,9 @@ function openModal(id) {
 }
 function closeModal(id) {
   document.getElementById('modal-' + id).classList.remove('open');
-  if (id === 'addStop') stopMapPick();
+  if (id === 'addStop') {
+    stopMapPick();
+  }
 }
 // 오버레이 클릭으로 닫기
 // overlay click to close — handled in init via setupModals()
@@ -3269,6 +3408,180 @@ async function handleExcelUpload(event) {
   } catch(e) {
     setSyncStatus('error', '업로드 실패');
     alert('❌ 업로드 오류: ' + e.message);
+  }
+}
+
+// ── 캠퍼스 추가 ──
+let _acYoils = []; // 선택된 요일 목록
+let _acCampuses = []; // 로드된 캠퍼스 목록
+
+async function openAddCampusModal() {
+  _acYoils = [];
+  _acCampuses = [];
+  // UI 초기화
+  document.getElementById('addCampusLoading').style.display = 'block';
+  document.getElementById('addCampusContent').style.display = 'none';
+  document.getElementById('ac-submit-btn').style.display = 'none';
+  document.getElementById('ac-yoil-list').innerHTML = '';
+  document.getElementById('ac-campus').innerHTML = '<option value="">— 캠퍼스를 선택하세요 —</option>';
+  document.getElementById('ac-addr-wrap').style.display = 'none';
+  document.getElementById('ac-empty-msg').style.display = 'none';
+  // 프리셋 버튼 초기화
+  document.querySelectorAll('.ac-yoil-preset').forEach(b => {
+    b.style.background = 'var(--surface2)'; b.style.color = 'var(--muted)';
+    b.style.borderColor = 'var(--border)';
+  });
+  openModal('addCampus');
+
+  try {
+    const res = await fetch(SHEETS_WRITE_URL + '?action=getNewCampusList');
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message);
+
+    _acCampuses = data.campuses || [];
+    document.getElementById('addCampusLoading').style.display = 'none';
+    document.getElementById('addCampusContent').style.display = 'block';
+
+    if (_acCampuses.length === 0) {
+      document.getElementById('ac-empty-msg').style.display = 'block';
+      return;
+    }
+
+    const sel = document.getElementById('ac-campus');
+    _acCampuses.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.key;
+      opt.textContent = c.name + (c.addr ? `  (${c.addr})` : '');
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    document.getElementById('addCampusLoading').textContent = '❌ 불러오기 실패: ' + e.message;
+  }
+}
+
+function onCampusSelect() {
+  const key = document.getElementById('ac-campus').value;
+  const campus = _acCampuses.find(c => c.key === key);
+  const addrWrap = document.getElementById('ac-addr-wrap');
+  const submitBtn = document.getElementById('ac-submit-btn');
+
+  if (campus && campus.addr) {
+    document.getElementById('ac-addr').textContent = '📍 ' + campus.addr;
+    addrWrap.style.display = 'block';
+  } else {
+    addrWrap.style.display = 'none';
+  }
+  submitBtn.style.display = key ? 'inline-flex' : 'none';
+}
+
+function toggleYoilPreset(btn) {
+  const yoil = btn.dataset.yoil;
+  const idx = _acYoils.indexOf(yoil);
+  if (idx === -1) {
+    _acYoils.push(yoil);
+    btn.style.background = '#a855f722';
+    btn.style.color = '#c084fc';
+    btn.style.borderColor = '#a855f7';
+  } else {
+    _acYoils.splice(idx, 1);
+    btn.style.background = 'var(--surface2)';
+    btn.style.color = 'var(--muted)';
+    btn.style.borderColor = 'var(--border)';
+  }
+  renderAcYoilList();
+}
+
+function addCustomYoil() {
+  const inp = document.getElementById('ac-yoil-custom');
+  const val = inp.value.trim();
+  if (!val || _acYoils.includes(val)) { inp.value = ''; return; }
+  _acYoils.push(val);
+  inp.value = '';
+  renderAcYoilList();
+}
+
+function removeAcYoil(yoil) {
+  _acYoils = _acYoils.filter(y => y !== yoil);
+  // 프리셋 버튼도 해제
+  document.querySelectorAll('.ac-yoil-preset').forEach(b => {
+    if (b.dataset.yoil === yoil) {
+      b.style.background = 'var(--surface2)'; b.style.color = 'var(--muted)'; b.style.borderColor = 'var(--border)';
+    }
+  });
+  renderAcYoilList();
+}
+
+function renderAcYoilList() {
+  const wrap = document.getElementById('ac-yoil-list');
+  wrap.innerHTML = _acYoils.map(y =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:#1e3a5f;color:#7dd3fc;
+      border:1px solid #3b82f644;border-radius:4px;padding:3px 8px;font-size:11px;font-family:Noto Sans KR,sans-serif">
+      ${y}
+      <button onclick="removeAcYoil('${y}')"
+        style="background:none;border:none;color:#64748b;cursor:pointer;font-size:12px;padding:0;line-height:1">✕</button>
+    </span>`
+  ).join('');
+}
+
+async function submitAddCampus() {
+  const key = document.getElementById('ac-campus').value;
+  if (!key) { alert('캠퍼스를 선택해주세요.'); return; }
+
+  const ok = await showConfirm(
+    `"${key}" 캠퍼스를 추가할까요?${_acYoils.length ? '\n요일: ' + _acYoils.join(', ') : '\n(요일 없이 빈 시트 생성)'}`,
+    { title: '캠퍼스 추가', okText: '추가', danger: false }
+  );
+  if (!ok) return;
+
+  const btn = document.getElementById('ac-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '추가 중...';
+
+  try {
+    const res = await fetch(SHEETS_WRITE_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'createCampusSheet', sheet: key, campusKey: key, yoils: _acYoils }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    const result = await res.json();
+    if (result.status !== 'ok') throw new Error(result.message);
+
+    // 동적 캠퍼스 등록
+    addDynamicCampus(key);
+    // 캠퍼스 정보 업데이트 (주소 포함)
+    const info = _acCampuses.find(c => c.key === key);
+    if (info) {
+      CAMPUS_LIST[key].name = info.name;
+      CAMPUS_LIST[key].addr = info.addr;
+      if (info.addr) {
+        geocodeAddress(info.addr).then(coord => {
+          if (coord) { CAMPUS_LIST[key].lat = coord.lat; CAMPUS_LIST[key].lng = coord.lng; }
+        });
+      }
+    }
+    updateCampusUI();
+    closeModal('addCampus');
+    alert(`✅ "${key}" 캠퍼스가 추가됐습니다.\n해당 캠퍼스로 전환합니다.`);
+
+    // 추가된 캠퍼스로 전환 후 선택한 요일을 YOIL_LIST에 직접 설정
+    await selectCampus(key);
+    if (_acYoils.length > 0) {
+      const YOIL_ORDER = ['유치부', '월수금', '화목'];
+      YOIL_LIST = [..._acYoils].sort((a, b) => {
+        const ia = YOIL_ORDER.findIndex(o => a.startsWith(o));
+        const ib = YOIL_ORDER.findIndex(o => b.startsWith(o));
+        if ((ia === -1 ? 99 : ia) !== (ib === -1 ? 99 : ib)) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        return a.localeCompare(b, 'ko');
+      });
+      currentYoil = YOIL_LIST[0];
+      ALL_ROUTES = {}; ALL_ROUTES_BOARD = {}; ALL_ROUTES_ALIGHT = {};
+      ROUTES = {};
+      refreshUI();
+    }
+  } catch(e) {
+    alert('❌ 추가 실패: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '캠퍼스 추가';
   }
 }
 
@@ -3462,22 +3775,92 @@ function renderQuickStudents() {
 
 function startMapPick() {
   _mapPickMode = true;
-  document.getElementById('btnMapPick').textContent = '🎯 지도를 클릭하세요...';
-  document.getElementById('btnMapPick').style.background = 'var(--warn)';
+
+  // ① 모달 overlay 전체 숨기기 (어두운 배경 포함)
+  const overlay = document.getElementById('modal-addStop');
+  if (overlay) overlay.classList.remove('open');
+
+  // 지도 위에 안내 배너 표시
+  let banner = document.getElementById('mapPickBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'mapPickBanner';
+    banner.style.cssText = `
+      position:absolute;top:70px;left:50%;transform:translateX(-50%);
+      background:#0f172a;color:#fbbf24;font-size:13px;font-weight:700;
+      padding:10px 20px;border-radius:8px;border:1.5px solid #fbbf24;
+      box-shadow:0 4px 16px rgba(0,0,0,0.6);z-index:1000;
+      font-family:'Noto Sans KR',sans-serif;white-space:nowrap;
+      animation:modalIn .2s ease;
+    `;
+    document.querySelector('.map-container').appendChild(banner);
+  }
+  banner.textContent = '🎯 지도에서 정류장 위치를 클릭하세요  (ESC: 취소)';
+  banner.style.display = 'block';
+
   map.getContainer().style.cursor = 'crosshair';
-  map.once('click', function(e) {
-    document.getElementById('as-lat').value = e.latlng.lat.toFixed(6);
-    document.getElementById('as-lng').value = e.latlng.lng.toFixed(6);
+
+  // ESC로 취소
+  const escHandler = (e) => {
+    if (e.key === 'Escape') { stopMapPick(); document.removeEventListener('keydown', escHandler); }
+  };
+  document.addEventListener('keydown', escHandler);
+
+  map.once('click', async function(e) {
+    document.removeEventListener('keydown', escHandler);
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+
+    document.getElementById('as-lat').value = lat.toFixed(6);
+    document.getElementById('as-lng').value = lng.toFixed(6);
+
+    // ② 역지오코딩: 좌표 → 주소 자동 입력
+    const detailEl = document.getElementById('as-detail');
+    if (detailEl && !detailEl.value.trim()) {
+      try {
+        const url = `https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1&format=json&coordType=WGS84GEO&addressType=A10&lon=${lng}&lat=${lat}`;
+        const res = await fetch(url, { headers: { appKey: TMAP_KEY } });
+        if (res.ok) {
+          const data = await res.json();
+          const info = data?.addressInfo;
+          if (info) {
+            // T맵 역지오코딩: 도로명 주소 필드 우선 조합
+            // roadAddress 필드가 있으면 그대로 사용
+            let addr = '';
+            if (info.roadAddress && info.roadAddress.trim()) {
+              addr = info.roadAddress.trim();
+            } else {
+              // 직접 조합: 시/도 + 구/군 + 읍/면 + 도로명 + 건물번호
+              const parts = [
+                info.city_do, info.gu_gun, info.eup_myeon,
+                info.roadName, info.buildingIndex
+              ].filter(v => v && String(v).trim());
+              addr = parts.join(' ').trim();
+            }
+            // 그래도 없으면 fullAddress 첫 번째 (쉼표 앞)
+            if (!addr && info.fullAddress) {
+              addr = info.fullAddress.split(',')[0].trim();
+            }
+            if (addr) detailEl.value = addr;
+          }
+        }
+      } catch(e) { console.warn('[ReverseGeocode] 실패:', e); }
+    }
+
     stopMapPick();
-    // Re-open modal if closed
+    // ③ 모달 다시 표시
     document.getElementById('modal-addStop').classList.add('open');
   });
 }
+
 function stopMapPick() {
   _mapPickMode = false;
+  if (map) map.getContainer().style.cursor = '';
+  const banner = document.getElementById('mapPickBanner');
+  if (banner) banner.style.display = 'none';
   const btn = document.getElementById('btnMapPick');
   if (btn) { btn.textContent = '🗺 지도에서 선택'; btn.style.background = ''; }
-  if (map) map.getContainer().style.cursor = '';
+
 }
 
 // ── 정류장 추가 ──
@@ -3491,7 +3874,6 @@ function addStop() {
   const lng    = parseFloat(document.getElementById('as-lng').value);
 
   if (!place) { alert('정류장 이름을 입력해주세요.'); return; }
-  if (isNaN(lat) || isNaN(lng)) { alert('위도/경도를 입력해주세요.'); return; }
 
   if (!ALL_ROUTES[currentYoil]) ALL_ROUTES[currentYoil] = {};
   if (!ALL_ROUTES[currentYoil][bus]) ALL_ROUTES[currentYoil][bus] = [];
@@ -3499,7 +3881,27 @@ function addStop() {
   // 학생 목록 스냅샷 (초기화 전에 미리 저장)
   const studentNames = (_quickStudents || []).slice();
   const newStudents = studentNames.map(name => ({ name, level: '', gender: '' }));
-  ROUTES[bus].push({ place, detail, boardTime: board||null, alightTime: alight||null, lat, lng, students: newStudents });
+
+  // 좌표 없으면 주소로 자동 geocoding
+  let finalLat = isNaN(lat) ? null : lat;
+  let finalLng = isNaN(lng) ? null : lng;
+  const addrForGeo = detail || place;
+  if ((!finalLat || !finalLng) && addrForGeo) {
+    geocodeAddress(addrForGeo).then(coord => {
+      if (coord) {
+        const route = ROUTES[bus] || [];
+        const stopIdx = route.findIndex(s => s.place === place && !s.lat);
+        if (stopIdx !== -1) {
+          route[stopIdx].lat = coord.lat;
+          route[stopIdx].lng = coord.lng;
+          saveToFirestore();
+          renderMap();
+        }
+      }
+    });
+  }
+
+  ROUTES[bus].push({ place, detail, boardTime: board||null, alightTime: alight||null, lat: finalLat, lng: finalLng, students: newStudents });
   _quickStudents = [];
   renderQuickStudents();
   ROUTES[bus].sort((a,b) => (a.boardTime||'99:99') < (b.boardTime||'99:99') ? -1 : 1);
@@ -3518,7 +3920,7 @@ function addStop() {
     bus, place, addr: detail,
     boardTime: board || null,
     alightTime: alight || null,
-    lat, lng,
+    lat: finalLat, lng: finalLng,
     yoil: currentYoil,
     students: studentNames
   }).then(ok => {
@@ -4283,7 +4685,7 @@ window.addEventListener('load', () => {
 </div>
 
 <!-- 커스텀 confirm 모달 -->
-<div class="modal-overlay" id="modal-confirm">
+<div class="modal-overlay" id="modal-confirm" style="z-index:19000;">
   <div class="modal" style="width:360px;max-width:92vw;">
     <div class="modal-header">
       <div class="modal-title" id="confirm-title">확인</div>
@@ -4295,6 +4697,59 @@ window.addEventListener('load', () => {
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="_confirmResolve(false)">취소</button>
       <button class="btn btn-danger" id="confirm-ok-btn" onclick="_confirmResolve(true)">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 캠퍼스 추가 모달 -->
+<div class="modal-overlay" id="modal-addCampus">
+  <div class="modal" style="width:460px;max-width:96vw;">
+    <div class="modal-header">
+      <div class="modal-title">🏫 캠퍼스 추가</div>
+      <button class="modal-close" onclick="closeModal('addCampus')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="addCampusLoading" style="text-align:center;padding:24px;color:var(--muted);font-size:13px">
+        ⟳ 캠퍼스 목록 불러오는 중...
+      </div>
+      <div id="addCampusContent" style="display:none">
+        <div class="field">
+          <div class="field-label">추가할 캠퍼스 선택</div>
+          <select class="field-input" id="ac-campus" onchange="onCampusSelect()">
+            <option value="">— 캠퍼스를 선택하세요 —</option>
+          </select>
+        </div>
+        <div id="ac-addr-wrap" class="field" style="display:none">
+          <div class="field-label">학원 주소</div>
+          <div id="ac-addr" style="font-size:12px;color:var(--muted);padding:6px 0;"></div>
+        </div>
+        <div class="field">
+          <div class="field-label">운행 요일 설정</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px" id="ac-yoil-presets">
+            <button type="button" class="ac-yoil-preset" onclick="toggleYoilPreset(this)" data-yoil="유치부"
+              style="padding:5px 12px;border-radius:5px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer;font-family:Noto Sans KR,sans-serif;transition:all .12s">유치부</button>
+            <button type="button" class="ac-yoil-preset" onclick="toggleYoilPreset(this)" data-yoil="월수금"
+              style="padding:5px 12px;border-radius:5px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer;font-family:Noto Sans KR,sans-serif;transition:all .12s">월수금</button>
+            <button type="button" class="ac-yoil-preset" onclick="toggleYoilPreset(this)" data-yoil="화목"
+              style="padding:5px 12px;border-radius:5px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer;font-family:Noto Sans KR,sans-serif;transition:all .12s">화목</button>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <input class="field-input" id="ac-yoil-custom" placeholder="직접 입력 (예: 월수금 1차)" style="flex:1"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomYoil()}" />
+            <button onclick="addCustomYoil()"
+              style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0 12px;font-size:12px;cursor:pointer;white-space:nowrap">+ 추가</button>
+          </div>
+          <div id="ac-yoil-list" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px"></div>
+        </div>
+        <div id="ac-empty-msg" style="display:none;text-align:center;padding:16px;color:var(--muted);font-size:13px">
+          추가 가능한 캠퍼스가 없습니다.<br>
+          <small>캠퍼스별주소 시트에 등록 후 시도하세요.</small>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addCampus')">취소</button>
+      <button class="btn btn-primary" id="ac-submit-btn" onclick="submitAddCampus()" style="display:none">캠퍼스 추가</button>
     </div>
   </div>
 </div>
