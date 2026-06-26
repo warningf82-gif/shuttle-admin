@@ -1899,12 +1899,13 @@ function parseSheetRows(rawRows) {
     const busRaw  = row['승차'];
     const boardT  = row['등원시간'] || row['시간'];
     const alightT = row['하원시간'] || row['하차'];
-    const place   = String(row['승하차 장소'] || row['승하차장소'] || row['장소'] || '').trim();
+    // 신 스키마(승차장소/승차주소/승차좌표) 우선, 구 스키마 폴백 — 모바일은 승차(board) 측 기준 표시
+    const place   = String(row['승차장소'] || row['승하차 장소'] || row['승하차장소'] || row['장소'] || '').trim();
     const yoilRaw = String(row['요일'] || '').trim();
     const name    = String(row['이름'] || row['미름'] || '').trim();
-    const detail  = String(row['주소'] || '').trim();
-    const lng     = parseFloat(row['경도']);
-    const lat     = parseFloat(row['위도']);
+    const detail  = String(row['승차주소'] || row['주소'] || '').trim();
+    const lng     = parseFloat(row['승차경도'] != null ? row['승차경도'] : row['경도']);
+    const lat     = parseFloat(row['승차위도'] != null ? row['승차위도'] : row['위도']);
 
     if (!busRaw || !place) return;
     let busNo;
@@ -2003,24 +2004,43 @@ function fetchSheetData() {
           throw new Error(msg);
         }
 
-        // 컬럼 순서: 승차(0), 시간=등원(1), 하차(2), 시간=하원(3), 승하차 장소(4), 요일(5), 이름(6), 주소(7), 경도(8), 위도(9)
+        // 신 스키마(14컬럼, 승하차 분리) / 구 스키마(10컬럼) 자동 감지
+        // 구: 승차(0) 시간=등원(1) 하차(2) 시간=하원(3) 승하차장소(4) 요일(5) 이름(6) 주소(7) 경도(8) 위도(9)
         const cols = gvizData.table.cols.map(c => (c.label && c.label.trim()) ? c.label.trim() : (c.id || ''));
         console.log('[gviz] 컬럼:', cols);
 
+        const ci = {};
+        cols.forEach((label, i) => { if (label && ci[label] === undefined) ci[label] = i; });
+        const isNewSchema = ci['승차장소'] !== undefined;
+        console.log('[gviz] 스키마:', isNewSchema ? '신(14컬럼 승하차분리)' : '구(10컬럼)');
+
         const rows = gvizData.table.rows
           .map(r => {
-            const cell = (i) => {
-              const c = r.c ? r.c[i] : null;
-              return (c && c.v !== null && c.v !== undefined) ? String(c.v) : '';
-            };
-            // 인덱스 고정 매핑 (중복 헤더 '시간' 대응)
-            // gviz 시간값은 v가 Date 문자열로 오므로 f(formatted) 보다 v를 우선 사용
             const rawCell = (i) => {
-              const c = r.c ? r.c[i] : null;
+              const c = (i != null && i >= 0 && r.c) ? r.c[i] : null;
               if (!c || c.v === null || c.v === undefined) return '';
-              // 시간 타입: v가 "Date(...)" 형태
               return String(c.v);
             };
+            const byLabel = (label) => rawCell(ci[label]);
+
+            if (isNewSchema) {
+              return {
+                '승차':     byLabel('승차'),
+                '등원시간': byLabel('등원시간'),
+                '승차장소': byLabel('승차장소'),
+                '승차주소': byLabel('승차주소'),
+                '승차경도': byLabel('승차경도'),
+                '승차위도': byLabel('승차위도'),
+                '하차':     byLabel('하차'),
+                '하원시간': byLabel('하원시간'),
+                '하차장소': byLabel('하차장소'),
+                '하차주소': byLabel('하차주소'),
+                '하차경도': byLabel('하차경도'),
+                '하차위도': byLabel('하차위도'),
+                '요일':     byLabel('요일'),
+                '이름':     byLabel('이름'),
+              };
+            }
             return {
               '승차':        rawCell(0),
               '등원시간':    rawCell(1),

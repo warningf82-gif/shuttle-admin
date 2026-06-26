@@ -1278,6 +1278,20 @@
     letter-spacing: -0.2px;
   }
   .field-input::placeholder { color: #8a9ab8; }
+  /* 정류장 주소 추측 후보 드롭다운 */
+  .stop-suggest { margin-top: 6px; display: none; }
+  .stop-suggest.open { display: block; }
+  .stop-suggest .ss-head { font-size: 10px; color: #8a9ab8; padding: 2px 4px 4px; }
+  .stop-suggest .ss-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px;
+    background: #f4f6fb; margin-bottom: 4px; cursor: pointer; transition: background .12s, border-color .12s;
+  }
+  .stop-suggest .ss-item:hover { background: #e7eefc; border-color: #1B4FAA; }
+  .stop-suggest .ss-name { font-size: 13px; color: #0d1b3e; font-weight: 600; }
+  .stop-suggest .ss-addr { font-size: 11px; color: #64748b; }
+  .stop-suggest .ss-dist { margin-left: auto; font-size: 10px; color: #1B4FAA; white-space: nowrap; }
+  .stop-suggest .ss-empty { font-size: 12px; color: #8a9ab8; padding: 6px 4px; }
   select.field-input { color: #0d1b3e; }
   select.field-input option { background: #ffffff; color: #0d1b3e; }
   .field-input:focus {
@@ -1613,13 +1627,44 @@
         <select class="field-input" id="as-bus"></select>
       </div>
       <div class="field">
-        <div class="field-label">정류장 이름 (승하차 장소)</div>
-        <input class="field-input" id="as-place" placeholder="예: 은마 23동 뒤" />
+        <div class="field-label">승차 정류장 이름</div>
+        <div style="display:flex;gap:6px">
+          <input class="field-input" id="as-place" placeholder="예: 은마 23동 뒤" style="flex:1"
+            oninput="onStopSuggestInput('board')" />
+          <button type="button" onclick="suggestPlaces('board')" title="호차 동네 주변 후보 검색"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:0 10px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap">📍 주변 후보</button>
+        </div>
+        <div id="as-suggest" class="stop-suggest"></div>
       </div>
       <div class="field">
-        <div class="field-label">상세 주소</div>
+        <div class="field-label">승차 상세 주소</div>
         <input class="field-input" id="as-detail" placeholder="예: (대치동, 은마아파트) 23동" />
       </div>
+
+      <!-- 하차 위치 분리 토글 -->
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);cursor:pointer;margin:2px 0 10px">
+        <input type="checkbox" id="as-alight-diff" onchange="toggleAlightFields('as')" style="width:16px;height:16px;cursor:pointer" />
+        🔀 하차(하원) 위치가 승차와 다름
+      </label>
+      <div id="as-alight-block" style="display:none;border-left:3px solid var(--accent);padding-left:10px;margin-bottom:10px">
+        <div class="field">
+          <div class="field-label">하차 정류장 이름</div>
+          <div style="display:flex;gap:6px">
+            <input class="field-input" id="as-alight-place" placeholder="예: 하원 하차 지점" style="flex:1"
+              oninput="onStopSuggestInput('alight')" />
+            <button type="button" onclick="suggestPlaces('alight')" title="호차 동네 주변 후보 검색"
+              style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:0 10px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap">📍 주변 후보</button>
+          </div>
+          <div id="as-alight-suggest" class="stop-suggest"></div>
+        </div>
+        <div class="field">
+          <div class="field-label">하차 상세 주소</div>
+          <input class="field-input" id="as-alight-detail" placeholder="하차 지점 상세 주소" />
+        </div>
+        <input type="hidden" id="as-alight-lat" />
+        <input type="hidden" id="as-alight-lng" />
+      </div>
+
       <div class="field-row">
         <div class="field">
           <div class="field-label">등원 시간</div>
@@ -1663,13 +1708,60 @@
     <div class="modal-body">
       <input type="hidden" id="es-origPlace" />
       <div class="field">
-        <div class="field-label">정류장 이름</div>
-        <input class="field-input" id="es-place" />
+        <div class="field-label">승차 정류장 이름</div>
+        <div style="display:flex;gap:6px">
+          <input class="field-input" id="es-place" style="flex:1" oninput="onStopSuggestInput('es-board')" />
+          <button type="button" onclick="suggestPlaces('es-board')" title="호차 동네 주변 후보 검색"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:0 10px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap">📍 주변 후보</button>
+        </div>
+        <div id="es-suggest" class="stop-suggest"></div>
       </div>
       <div class="field">
-        <div class="field-label">상세 주소</div>
+        <div class="field-label">승차 상세 주소</div>
         <input class="field-input" id="es-detail" />
       </div>
+      <div class="field-row">
+        <div class="field">
+          <div class="field-label">승차 위도</div>
+          <input class="field-input" id="es-lat" type="number" step="0.0001" />
+        </div>
+        <div class="field">
+          <div class="field-label">승차 경도</div>
+          <input class="field-input" id="es-lng" type="number" step="0.0001" />
+        </div>
+      </div>
+
+      <!-- 하차 위치 분리 토글 -->
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);cursor:pointer;margin:2px 0 10px">
+        <input type="checkbox" id="es-alight-diff" onchange="toggleAlightFields('es')" style="width:16px;height:16px;cursor:pointer" />
+        🔀 하차(하원) 위치가 승차와 다름
+      </label>
+      <div id="es-alight-block" style="display:none;border-left:3px solid var(--accent);padding-left:10px;margin-bottom:10px">
+        <div class="field">
+          <div class="field-label">하차 정류장 이름</div>
+          <div style="display:flex;gap:6px">
+            <input class="field-input" id="es-alight-place" style="flex:1" oninput="onStopSuggestInput('es-alight')" />
+            <button type="button" onclick="suggestPlaces('es-alight')" title="호차 동네 주변 후보 검색"
+              style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:0 10px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap">📍 주변 후보</button>
+          </div>
+          <div id="es-alight-suggest" class="stop-suggest"></div>
+        </div>
+        <div class="field">
+          <div class="field-label">하차 상세 주소</div>
+          <input class="field-input" id="es-alight-detail" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">하차 위도</div>
+            <input class="field-input" id="es-alight-lat" type="number" step="0.0001" />
+          </div>
+          <div class="field">
+            <div class="field-label">하차 경도</div>
+            <input class="field-input" id="es-alight-lng" type="number" step="0.0001" />
+          </div>
+        </div>
+      </div>
+
       <div class="field-row">
         <div class="field">
           <div class="field-label">등원 시간</div>
@@ -1678,16 +1770,6 @@
         <div class="field">
           <div class="field-label">하원 시간</div>
           <input class="field-input" id="es-alight" type="time" />
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <div class="field-label">위도</div>
-          <input class="field-input" id="es-lat" type="number" step="0.0001" />
-        </div>
-        <div class="field">
-          <div class="field-label">경도</div>
-          <input class="field-input" id="es-lng" type="number" step="0.0001" />
         </div>
       </div>
     </div>
@@ -2005,17 +2087,32 @@ function parseSheetRows(rawRows) {
   }
 
   rows.forEach(row => {
-    // mode: 'board'=등원(승차 컬럼), 'alight'=하원(하차 컬럼)
+    // mode: 'board'=등원(승차 측), 'alight'=하원(하차 측)
     const mode    = arguments[1] || 'board';
-    const busRaw  = mode === 'alight' ? row['하차'] : row['승차'];
-    const boardT  = row['등원시간'] || row['시간'];
-    const alightT = row['하원시간'] || row['하차'];
-    const place   = String(row['승하차 장소'] || row['승하차장소'] || row['장소'] || '').trim();
+    const isAlight = mode === 'alight';
+
+    // 신 스키마(승차장소/하차장소) 우선, 구 스키마(승하차 장소) 폴백
+    const boardPlace  = String(row['승차장소'] || row['승하차 장소'] || row['승하차장소'] || row['장소'] || '').trim();
+    const alightPlace = String(row['하차장소'] || boardPlace).trim();
+    const boardDetail  = String(row['승차주소'] || row['주소'] || '').trim();
+    const alightDetail = String(row['하차주소'] || row['주소'] || '').trim();
+    const num = (v) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+    const boardLat  = num(row['승차위도'] != null ? row['승차위도'] : row['위도']);
+    const boardLng  = num(row['승차경도'] != null ? row['승차경도'] : row['경도']);
+    const alightLat = num(row['하차위도'] != null ? row['하차위도'] : row['위도']);
+    const alightLng = num(row['하차경도'] != null ? row['하차경도'] : row['경도']);
+
+    const busRaw  = isAlight ? (row['하차'] || row['승차']) : row['승차'];
+    const boardT  = row['등원시간'] || row['시간'] || '';
+    const alightT = row['하원시간'] || '';
     const yoilRaw = String(row['요일'] || '').trim();
     const name    = String(row['이름'] || row['미름'] || '').trim();
-    const detail  = String(row['주소'] || '').trim();
-    const lng     = parseFloat(row['경도']);
-    const lat     = parseFloat(row['위도']);
+
+    // 현재 측(side) 기준 값
+    const place  = isAlight ? (alightPlace || boardPlace) : boardPlace;
+    const detail = isAlight ? alightDetail : boardDetail;
+    const lat    = isAlight ? alightLat : boardLat;
+    const lng    = isAlight ? alightLng : boardLng;
 
     if (!busRaw || !place) return;
     let busNo;
@@ -2032,8 +2129,11 @@ function parseSheetRows(rawRows) {
         detail,
         boardTime: parseTime(boardT),
         alightTime: parseTime(alightT),
-        lat: isNaN(lat) ? null : lat,
-        lng: isNaN(lng) ? null : lng,
+        lat, lng,
+        // 승/하차 양측 정보 (편집 모달·좌표저장용) — 측과 무관하게 모두 보유
+        boardPlace, alightPlace,
+        boardDetail, alightDetail,
+        boardLat, boardLng, alightLat, alightLng,
         students: []
       };
     }
@@ -2114,24 +2214,46 @@ function fetchSheetData() {
           throw new Error(msg);
         }
 
-        // 컬럼 순서: 승차(0), 시간=등원(1), 하차(2), 시간=하원(3), 승하차 장소(4), 요일(5), 이름(6), 주소(7), 경도(8), 위도(9)
+        // 신 스키마(14컬럼, 승하차 분리) / 구 스키마(10컬럼) 자동 감지
+        // 구: 승차(0) 시간=등원(1) 하차(2) 시간=하원(3) 승하차장소(4) 요일(5) 이름(6) 주소(7) 경도(8) 위도(9)
         const cols = gvizData.table.cols.map(c => (c.label && c.label.trim()) ? c.label.trim() : (c.id || ''));
         console.log('[gviz] 컬럼:', cols);
 
+        // 헤더 라벨 → 인덱스 (신 스키마 감지/매핑용)
+        const ci = {};
+        cols.forEach((label, i) => { if (label && ci[label] === undefined) ci[label] = i; });
+        const isNewSchema = ci['승차장소'] !== undefined;
+        console.log('[gviz] 스키마:', isNewSchema ? '신(14컬럼 승하차분리)' : '구(10컬럼)');
+
         const rows = gvizData.table.rows
           .map(r => {
-            const cell = (i) => {
-              const c = r.c ? r.c[i] : null;
-              return (c && c.v !== null && c.v !== undefined) ? String(c.v) : '';
-            };
-            // 인덱스 고정 매핑 (중복 헤더 '시간' 대응)
-            // gviz 시간값은 v가 Date 문자열로 오므로 f(formatted) 보다 v를 우선 사용
+            // gviz 시간값은 v가 "Date(...)" 형태 → f(formatted)보다 v 우선
             const rawCell = (i) => {
-              const c = r.c ? r.c[i] : null;
+              const c = (i != null && i >= 0 && r.c) ? r.c[i] : null;
               if (!c || c.v === null || c.v === undefined) return '';
-              // 시간 타입: v가 "Date(...)" 형태
               return String(c.v);
             };
+            const byLabel = (label) => rawCell(ci[label]);
+
+            if (isNewSchema) {
+              return {
+                '승차':     byLabel('승차'),
+                '등원시간': byLabel('등원시간'),
+                '승차장소': byLabel('승차장소'),
+                '승차주소': byLabel('승차주소'),
+                '승차경도': byLabel('승차경도'),
+                '승차위도': byLabel('승차위도'),
+                '하차':     byLabel('하차'),
+                '하원시간': byLabel('하원시간'),
+                '하차장소': byLabel('하차장소'),
+                '하차주소': byLabel('하차주소'),
+                '하차경도': byLabel('하차경도'),
+                '하차위도': byLabel('하차위도'),
+                '요일':     byLabel('요일'),
+                '이름':     byLabel('이름'),
+              };
+            }
+            // 구 스키마: 고정 인덱스 (중복 헤더 '시간' 대응)
             return {
               '승차':        rawCell(0),
               '등원시간':    rawCell(1),
@@ -3967,40 +4089,44 @@ function initMapSearch() {
 
 // ── 좌표 없는 정류장 일괄 geocoding + 시트 자동 저장 ──
 async function geocodeMissingStops() {
+  // 승차(board)·하차(alight) 측을 각각 독립적으로 빈좌표 채움
   const candidates = [];
-
-  for (const yoil of Object.keys(ALL_ROUTES_BOARD)) {
-    for (const bus of Object.keys(ALL_ROUTES_BOARD[yoil] || {})) {
-      for (const stop of ALL_ROUTES_BOARD[yoil][bus] || []) {
-        if (!stop.lat && !stop.lng && (stop.detail || stop.place)) {
-          candidates.push({ yoil, bus, stop });
+  const collect = (tree, side) => {
+    for (const yoil of Object.keys(tree)) {
+      for (const bus of Object.keys(tree[yoil] || {})) {
+        for (const stop of tree[yoil][bus] || []) {
+          const lat = side === 'alight' ? stop.alightLat : stop.boardLat;
+          const lng = side === 'alight' ? stop.alightLng : stop.boardLng;
+          const place  = side === 'alight' ? (stop.alightPlace || stop.place) : (stop.boardPlace || stop.place);
+          const detail = side === 'alight' ? (stop.alightDetail || stop.detail) : (stop.boardDetail || stop.detail);
+          if (!lat && !lng && (detail || place)) {
+            candidates.push({ yoil, bus, stop, side, place, addr: detail || place });
+          }
         }
       }
     }
-  }
+  };
+  collect(ALL_ROUTES_BOARD, 'board');
+  collect(ALL_ROUTES_ALIGHT, 'alight');
 
   if (candidates.length === 0) return;
   console.log('[Geocode] 좌표 없는 정류장:', candidates.length, '개 — 자동 변환 시작');
 
   let updated = 0;
-  for (const { yoil, bus, stop } of candidates) {
-    const addr = stop.detail || stop.place;
+  for (const { yoil, bus, stop, side, place, addr } of candidates) {
     const coord = await geocodeAddress(addr);
     if (coord) {
-      // 메모리 업데이트 (board/alight 양쪽)
-      stop.lat = coord.lat;
-      stop.lng = coord.lng;
-      // ALL_ROUTES_ALIGHT에도 같은 정류장 있으면 업데이트
-      const alightStop = (ALL_ROUTES_ALIGHT[yoil]?.[bus] || [])
-        .find(s => s.place === stop.place);
-      if (alightStop) { alightStop.lat = coord.lat; alightStop.lng = coord.lng; }
+      // 메모리 업데이트 (해당 측 + 현재 표시값)
+      if (side === 'alight') { stop.alightLat = coord.lat; stop.alightLng = coord.lng; }
+      else                   { stop.boardLat  = coord.lat; stop.boardLng  = coord.lng; }
+      stop.lat = coord.lat; stop.lng = coord.lng;
 
       // 시트에 좌표 저장 (백그라운드, 실패해도 무시)
       sheetsWrite('updateStopCoords', {
-        bus, place: stop.place, yoil,
+        bus, place, yoil, side,
         lat: coord.lat, lng: coord.lng
       }).then(ok => {
-        if (ok) console.log('[Geocode] 시트 저장:', stop.place, coord);
+        if (ok) console.log('[Geocode] 시트 저장:', side, place, coord);
       });
 
       updated++;
@@ -4029,6 +4155,141 @@ async function geocodeAddress(addr) {
     console.warn('[Geocode] 실패:', addr, e);
     return null;
   }
+}
+
+// =====================================================
+// 정류장 주소 추측 (#3) — 호차 동네 주변 POI 후보 제시
+// =====================================================
+// target 토큰별 입력/출력 요소 매핑
+const SUGGEST_MAP = {
+  'board':     { place:'as-place',        detail:'as-detail',        lat:'as-lat',        lng:'as-lng',        box:'as-suggest',        busFrom:'sel' },
+  'alight':    { place:'as-alight-place', detail:'as-alight-detail', lat:'as-alight-lat', lng:'as-alight-lng', box:'as-alight-suggest', busFrom:'sel' },
+  'es-board':  { place:'es-place',        detail:'es-detail',        lat:'es-lat',        lng:'es-lng',        box:'es-suggest',        busFrom:'edit' },
+  'es-alight': { place:'es-alight-place', detail:'es-alight-detail', lat:'es-alight-lat', lng:'es-alight-lng', box:'es-alight-suggest', busFrom:'edit' }
+};
+let _stopSuggestCache = {};
+
+// 하차 입력 블록 토글
+function toggleAlightFields(prefix) {
+  const on = !!(document.getElementById(prefix + '-alight-diff') || {}).checked;
+  const block = document.getElementById(prefix + '-alight-block');
+  if (block) block.style.display = on ? 'block' : 'none';
+}
+
+function closeSuggest(boxId) {
+  const b = document.getElementById(boxId);
+  if (b) { b.classList.remove('open'); b.innerHTML = ''; }
+}
+
+function onStopSuggestInput(target) {
+  const cfg = SUGGEST_MAP[target];
+  if (cfg) closeSuggest(cfg.box);
+}
+
+// 거리 (km)
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, toR = x => x * Math.PI / 180;
+  const dLat = toR(lat2 - lat1), dLng = toR(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// 호차가 다니는 동네 중심좌표 (해당 호차·요일 정류장 좌표 평균, 없으면 캠퍼스)
+function busCentroid(busNo) {
+  const yoil = currentYoil;
+  const pts = [];
+  [ALL_ROUTES_BOARD, ALL_ROUTES_ALIGHT].forEach(tree => {
+    const stops = ((tree || {})[yoil] || {})[busNo] || [];
+    stops.forEach(s => {
+      if (s.boardLat && s.boardLng)   pts.push([s.boardLat, s.boardLng]);
+      if (s.alightLat && s.alightLng) pts.push([s.alightLat, s.alightLng]);
+    });
+  });
+  if (!pts.length) {
+    if (typeof CAMPUS !== 'undefined' && CAMPUS && CAMPUS.lat) return { lat: CAMPUS.lat, lng: CAMPUS.lng };
+    return null;
+  }
+  return {
+    lat: pts.reduce((a, p) => a + p[0], 0) / pts.length,
+    lng: pts.reduce((a, p) => a + p[1], 0) / pts.length
+  };
+}
+
+// 키워드 → POI 후보 (중심좌표로 거리 재정렬)
+async function tmapPoiSearch(query, center) {
+  try {
+    let url = `https://apis.openapi.sk.com/tmap/pois?version=1&format=json` +
+      `&searchKeyword=${encodeURIComponent(query)}` +
+      `&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=20`;
+    if (center && center.lat && center.lng) {
+      url += `&centerLon=${center.lng}&centerLat=${center.lat}&radius=0`;
+    }
+    const data = await fetch(url, { headers: { appKey: TMAP_KEY } }).then(r => r.json());
+    const pois = data?.searchPoiInfo?.pois?.poi || [];
+    const out = pois.map(p => {
+      const lat = parseFloat(p.frontLat || p.noorLat);
+      const lng = parseFloat(p.frontLon || p.noorLon);
+      if (!lat || !lng) return null;
+      const road = p.newAddressList?.newAddress?.[0]?.fullAddressRoad || '';
+      const area = [p.upperAddrName, p.middleAddrName, p.lowerAddrName].filter(v => v && v !== ' ').join(' ');
+      const distKm = (center && center.lat) ? haversineKm(center.lat, center.lng, lat, lng) : null;
+      return { name: p.name, addr: road || area, lat, lng, distKm };
+    }).filter(Boolean);
+    if (center && center.lat) out.sort((a, b) => (a.distKm ?? 9e9) - (b.distKm ?? 9e9));
+    return out.slice(0, 5);
+  } catch(e) {
+    console.warn('[Suggest] POI 검색 실패:', e);
+    return [];
+  }
+}
+
+// 후보 제시
+async function suggestPlaces(target) {
+  const cfg = SUGGEST_MAP[target];
+  if (!cfg) return;
+  const kw = (document.getElementById(cfg.place).value || '').trim();
+  if (!kw) { alert('정류장 이름(키워드)을 먼저 입력하세요.'); return; }
+
+  const bus = cfg.busFrom === 'sel'
+    ? document.getElementById('as-bus').value
+    : (_editingStop ? _editingStop.busNo : '');
+
+  const box = document.getElementById(cfg.box);
+  box.classList.add('open');
+  box.innerHTML = '<div class="ss-empty">🔍 주변 후보 검색 중…</div>';
+
+  const center = busCentroid(bus);
+  const pois = await tmapPoiSearch(kw, center);
+  _stopSuggestCache[target] = pois;
+
+  if (!pois.length) {
+    box.innerHTML = '<div class="ss-empty">후보가 없습니다. 키워드를 바꿔보세요.</div>';
+    return;
+  }
+  const head = center
+    ? `<div class="ss-head">${bus}호차 동네 주변 · 가까운 순</div>`
+    : `<div class="ss-head">검색 결과</div>`;
+  box.innerHTML = head + pois.map((p, i) => `
+    <div class="ss-item" onclick="applySuggestion('${target}', ${i})">
+      <div style="min-width:0">
+        <div class="ss-name">${p.name}</div>
+        <div class="ss-addr">${p.addr || ''}</div>
+      </div>
+      ${p.distKm != null ? `<div class="ss-dist">${p.distKm.toFixed(1)}km</div>` : ''}
+    </div>`).join('');
+}
+
+// 후보 클릭 → 주소·좌표 채움 (장소명은 사용자가 입력한 라벨 유지)
+function applySuggestion(target, idx) {
+  const p = (_stopSuggestCache[target] || [])[idx];
+  if (!p) return;
+  const cfg = SUGGEST_MAP[target];
+  const placeEl = document.getElementById(cfg.place);
+  if (placeEl && !placeEl.value.trim()) placeEl.value = p.name;
+  document.getElementById(cfg.detail).value = p.addr || '';
+  document.getElementById(cfg.lat).value = p.lat;
+  document.getElementById(cfg.lng).value = p.lng;
+  closeSuggest(cfg.box);
 }
 
 // ── 스프레드시트에서 사용 가능한 캠퍼스 목록 로드 ──
@@ -4275,50 +4536,65 @@ function stopMapPick() {
 }
 
 // ── 정류장 추가 ──
-function addStop() {
+async function addStop() {
   const bus    = document.getElementById('as-bus').value;
   const place  = document.getElementById('as-place').value.trim();
   const detail = document.getElementById('as-detail').value.trim();
   const board  = document.getElementById('as-board').value;
   const alight = document.getElementById('as-alight').value;
-  const lat    = parseFloat(document.getElementById('as-lat').value);
-  const lng    = parseFloat(document.getElementById('as-lng').value);
+  let bLat = parseFloat(document.getElementById('as-lat').value);
+  let bLng = parseFloat(document.getElementById('as-lng').value);
 
-  if (!place) { alert('정류장 이름을 입력해주세요.'); return; }
+  if (!place) { alert('승차 정류장 이름을 입력해주세요.'); return; }
+
+  // 하차 위치 분리 입력 (체크 안 하면 승차와 동일)
+  const alightDiff = !!(document.getElementById('as-alight-diff') || {}).checked;
+  let aPlace  = alightDiff ? (document.getElementById('as-alight-place').value.trim() || place) : place;
+  let aDetail = alightDiff ? document.getElementById('as-alight-detail').value.trim() : detail;
+  let aLat = alightDiff ? parseFloat(document.getElementById('as-alight-lat').value) : bLat;
+  let aLng = alightDiff ? parseFloat(document.getElementById('as-alight-lng').value) : bLng;
+
+  // 좌표 없으면 주소→좌표 자동 변환 (승/하차 각각)
+  if ((isNaN(bLat) || isNaN(bLng)) && (detail || place)) {
+    const c = await geocodeAddress(detail || place);
+    if (c) { bLat = c.lat; bLng = c.lng; }
+  }
+  if (alightDiff) {
+    if ((isNaN(aLat) || isNaN(aLng)) && (aDetail || aPlace)) {
+      const c = await geocodeAddress(aDetail || aPlace);
+      if (c) { aLat = c.lat; aLng = c.lng; }
+    }
+  } else { aLat = bLat; aLng = bLng; aDetail = detail; aPlace = place; }
+
+  const fbLat = isNaN(bLat) ? null : bLat, fbLng = isNaN(bLng) ? null : bLng;
+  const faLat = isNaN(aLat) ? null : aLat, faLng = isNaN(aLng) ? null : aLng;
 
   if (!ALL_ROUTES[currentYoil]) ALL_ROUTES[currentYoil] = {};
   if (!ALL_ROUTES[currentYoil][bus]) ALL_ROUTES[currentYoil][bus] = [];
   ROUTES = ALL_ROUTES[currentYoil];
-  // 학생 목록 스냅샷 (초기화 전에 미리 저장)
   const studentNames = (_quickStudents || []).slice();
   const newStudents = studentNames.map(name => ({ name, level: '', gender: '' }));
 
-  // 좌표 없으면 주소로 자동 geocoding
-  let finalLat = isNaN(lat) ? null : lat;
-  let finalLng = isNaN(lng) ? null : lng;
-  const addrForGeo = detail || place;
-  if ((!finalLat || !finalLng) && addrForGeo) {
-    geocodeAddress(addrForGeo).then(coord => {
-      if (coord) {
-        const route = ROUTES[bus] || [];
-        const stopIdx = route.findIndex(s => s.place === place && !s.lat);
-        if (stopIdx !== -1) {
-          route[stopIdx].lat = coord.lat;
-          route[stopIdx].lng = coord.lng;
-          saveToFirestore();
-          renderMap();
-        }
-      }
-    });
-  }
-
-  ROUTES[bus].push({ place, detail, boardTime: board||null, alightTime: alight||null, lat: finalLat, lng: finalLng, students: newStudents });
+  ROUTES[bus].push({
+    place, detail, boardTime: board||null, alightTime: alight||null,
+    lat: fbLat, lng: fbLng,
+    boardPlace: place, alightPlace: aPlace,
+    boardDetail: detail, alightDetail: aDetail,
+    boardLat: fbLat, boardLng: fbLng, alightLat: faLat, alightLng: faLng,
+    students: newStudents
+  });
   _quickStudents = [];
   renderQuickStudents();
   ROUTES[bus].sort((a,b) => (a.boardTime||'99:99') < (b.boardTime||'99:99') ? -1 : 1);
 
   // Clear form
-  ['as-place','as-detail','as-board','as-alight','as-lat','as-lng'].forEach(id => document.getElementById(id).value = '');
+  ['as-place','as-detail','as-board','as-alight','as-lat','as-lng',
+   'as-alight-place','as-alight-detail','as-alight-lat','as-alight-lng']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const adf = document.getElementById('as-alight-diff');
+  if (adf) { adf.checked = false; toggleAlightFields('as'); }
+  closeSuggest('as-suggest'); closeSuggest('as-alight-suggest');
+
   // 해당 호차 T맵 캐시 삭제 → 새 정류장 포함해서 재계산되도록
   delete tmapRouteCache[bus + '_board'];
   delete tmapRouteCache[bus + '_alight'];
@@ -4326,14 +4602,12 @@ function addStop() {
   selectBus(bus);
   saveToFirestore();
 
-  // 구글 시트에도 즉시 반영
+  // 구글 시트에도 즉시 반영 (승/하차 분리 payload + 구버전 호환 필드)
   sheetsWrite('addStop', {
-    bus, place, addr: detail,
-    boardTime: board || null,
-    alightTime: alight || null,
-    lat: finalLat, lng: finalLng,
-    yoil: currentYoil,
-    students: studentNames
+    bus, yoil: currentYoil, students: studentNames,
+    boardPlace: place,  boardAddr: detail,  boardTime: board || null,  boardLat: fbLat, boardLng: fbLng,
+    alightPlace: aPlace, alightAddr: aDetail, alightTime: alight || null, alightLat: faLat, alightLng: faLng,
+    place, addr: detail, lat: fbLat, lng: fbLng
   }).then(ok => {
     if (ok) {
       setSyncStatus('ok');
@@ -4347,50 +4621,98 @@ function openEditStop(busNo, stopIdx) {
   const stop = (ROUTES[busNo]||[])[stopIdx];
   if (!stop) return;
   _editingStop = { busNo, stopIdx };
-  document.getElementById('es-origPlace').value = stop.place;
-  document.getElementById('es-place').value     = stop.place;
-  document.getElementById('es-detail').value    = stop.detail || '';
+
+  // 승차(board) 측 — 편집의 안정 키는 승차장소
+  const bPlace  = stop.boardPlace  != null ? stop.boardPlace  : stop.place;
+  const bDetail = stop.boardDetail != null ? stop.boardDetail : (stop.detail || '');
+  const bLat    = stop.boardLat != null ? stop.boardLat : stop.lat;
+  const bLng    = stop.boardLng != null ? stop.boardLng : stop.lng;
+  document.getElementById('es-origPlace').value = bPlace;
+  document.getElementById('es-place').value     = bPlace;
+  document.getElementById('es-detail').value    = bDetail;
   document.getElementById('es-board').value     = stop.boardTime  || '';
   document.getElementById('es-alight').value    = stop.alightTime || '';
-  document.getElementById('es-lat').value       = stop.lat || '';
-  document.getElementById('es-lng').value       = stop.lng || '';
+  document.getElementById('es-lat').value       = bLat != null ? bLat : '';
+  document.getElementById('es-lng').value       = bLng != null ? bLng : '';
+
+  // 하차(alight) 측 — 승차와 다르면 토글 ON
+  const aPlace  = stop.alightPlace  != null ? stop.alightPlace  : bPlace;
+  const aDetail = stop.alightDetail != null ? stop.alightDetail : bDetail;
+  const aLat    = stop.alightLat;
+  const aLng    = stop.alightLng;
+  const differs = (aPlace && aPlace !== bPlace) ||
+                  (aLat != null && (aLat !== bLat || aLng !== bLng)) ||
+                  (aDetail && aDetail !== bDetail);
+  const diffEl = document.getElementById('es-alight-diff');
+  if (diffEl) { diffEl.checked = !!differs; toggleAlightFields('es'); }
+  document.getElementById('es-alight-place').value  = aPlace || '';
+  document.getElementById('es-alight-detail').value = aDetail || '';
+  document.getElementById('es-alight-lat').value    = aLat != null ? aLat : '';
+  document.getElementById('es-alight-lng').value    = aLng != null ? aLng : '';
+
+  closeSuggest('es-suggest'); closeSuggest('es-alight-suggest');
   document.getElementById('modal-editStop').classList.add('open');
 }
 
 // ── 정류장 편집 저장 ──
-function saveEditStop() {
+async function saveEditStop() {
   if (!_editingStop) return;
   const { busNo, stopIdx } = _editingStop;
   const stop = ROUTES[busNo][stopIdx];
-  stop.place     = document.getElementById('es-place').value.trim()  || stop.place;
-  stop.detail    = document.getElementById('es-detail').value.trim();
-  stop.boardTime = document.getElementById('es-board').value  || null;
-  stop.alightTime= document.getElementById('es-alight').value || null;
-  const lat = parseFloat(document.getElementById('es-lat').value);
-  const lng = parseFloat(document.getElementById('es-lng').value);
-  if (!isNaN(lat)) stop.lat = lat;
-  if (!isNaN(lng)) stop.lng = lng;
-  const origPlace = document.getElementById('es-origPlace')?.value || stop.place;
-  const snapPlace   = stop.place;
-  const snapDetail  = stop.detail;
-  const snapBoard   = stop.boardTime;
-  const snapAlight  = stop.alightTime;
-  const snapLat     = stop.lat;
-  const snapLng     = stop.lng;
+
+  const origPlace = document.getElementById('es-origPlace')?.value || stop.boardPlace || stop.place;
+  const bPlace  = document.getElementById('es-place').value.trim() || origPlace;
+  const bDetail = document.getElementById('es-detail').value.trim();
+  const boardTime  = document.getElementById('es-board').value  || null;
+  const alightTime = document.getElementById('es-alight').value || null;
+  let bLat = parseFloat(document.getElementById('es-lat').value);
+  let bLng = parseFloat(document.getElementById('es-lng').value);
+
+  const alightDiff = !!(document.getElementById('es-alight-diff') || {}).checked;
+  let aPlace  = alightDiff ? (document.getElementById('es-alight-place').value.trim() || bPlace) : bPlace;
+  let aDetail = alightDiff ? document.getElementById('es-alight-detail').value.trim() : bDetail;
+  let aLat = alightDiff ? parseFloat(document.getElementById('es-alight-lat').value) : bLat;
+  let aLng = alightDiff ? parseFloat(document.getElementById('es-alight-lng').value) : bLng;
+
+  // 좌표 비어있고 주소 있으면 자동 변환
+  if ((isNaN(bLat) || isNaN(bLng)) && (bDetail || bPlace)) {
+    const c = await geocodeAddress(bDetail || bPlace);
+    if (c) { bLat = c.lat; bLng = c.lng; }
+  }
+  if (alightDiff && (isNaN(aLat) || isNaN(aLng)) && (aDetail || aPlace)) {
+    const c = await geocodeAddress(aDetail || aPlace);
+    if (c) { aLat = c.lat; aLng = c.lng; }
+  }
+  if (!alightDiff) { aLat = bLat; aLng = bLng; aDetail = bDetail; aPlace = bPlace; }
+
+  const fbLat = isNaN(bLat) ? null : bLat, fbLng = isNaN(bLng) ? null : bLng;
+  const faLat = isNaN(aLat) ? null : aLat, faLng = isNaN(aLng) ? null : aLng;
+
+  // 메모리(현재 측 표시값 + 양측 보유 필드) 업데이트
+  const isAlightView = (typeof currentMode !== 'undefined' && currentMode === 'alight');
+  stop.boardPlace = bPlace; stop.alightPlace = aPlace;
+  stop.boardDetail = bDetail; stop.alightDetail = aDetail;
+  stop.boardLat = fbLat; stop.boardLng = fbLng;
+  stop.alightLat = faLat; stop.alightLng = faLng;
+  stop.boardTime = boardTime; stop.alightTime = alightTime;
+  stop.place  = isAlightView ? aPlace : bPlace;
+  stop.detail = isAlightView ? aDetail : bDetail;
+  stop.lat    = isAlightView ? faLat : fbLat;
+  stop.lng    = isAlightView ? faLng : fbLng;
+
   const snapStudents = (stop.students || []).map(s => s.name);
 
   closeModal('editStop');
   selectBus(busNo);
   saveToFirestore();
 
-  // 구글 시트에도 편집 반영
+  // 구글 시트에 편집 반영 (승/하차 분리 payload + 구버전 호환 필드)
   sheetsWrite('editStop', {
     bus: busNo, yoil: currentYoil,
-    origPlace,
-    place: snapPlace, addr: snapDetail,
-    boardTime: snapBoard || null,
-    alightTime: snapAlight || null,
-    lat: snapLat, lng: snapLng,
+    origBoardPlace: origPlace, origPlace,
+    boardPlace: bPlace,  boardAddr: bDetail,  boardTime, boardLat: fbLat, boardLng: fbLng,
+    alightPlace: aPlace, alightAddr: aDetail, alightTime, alightLat: faLat, alightLng: faLng,
+    place: bPlace, addr: bDetail, lat: fbLat, lng: fbLng,
     students: snapStudents
   }).then(ok => { if (ok) setTimeout(() => fetchSheetData(), 4000); });
 }
