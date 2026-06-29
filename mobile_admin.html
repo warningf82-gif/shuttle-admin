@@ -2591,6 +2591,15 @@ async function loadTmapRoute() {
 
   const cacheKey = currentBus + '_' + currentMode;
   const btn = document.getElementById('btnCalcTime');
+
+  // 캐시 재사용: 같은 호차+모드는 재호출 없이 즉시 복원 (T맵 경로 API 일 1천건 절약)
+  if (tmapRouteCache[cacheKey]) {
+    drawTmapRoute(cacheKey);
+    btn.textContent = '✅ T맵계산완료';
+    btn.classList.add('active');
+    return;
+  }
+
   btn.disabled = true;
 
   let stops = [...route];

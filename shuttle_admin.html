@@ -2949,6 +2949,15 @@ async function loadTmapRoute() {
 
   const cacheKey = currentBus + '_' + currentMode;
   const btn = document.getElementById('btnCalcTime');
+
+  // 캐시 재사용: 같은 호차+모드는 재호출 없이 즉시 복원 (T맵 경로 API 일 1천건 절약)
+  if (tmapRouteCache[cacheKey]) {
+    drawTmapRoute(cacheKey);
+    btn.textContent = '✅ T맵계산완료';
+    btn.classList.add('active');
+    return;
+  }
+
   btn.disabled = true;
 
   let stops = [...route];
@@ -4087,6 +4096,25 @@ function initMapSearch() {
   });
 }
 
+// ── 지오코딩 실패 주소 캐시 (localStorage) ──
+// 주소를 못 찾는 정류장을 매 페이지 로드마다 재시도하던 낭비 방지.
+// 3일 지나면 자동으로 재시도 허용(일시적 네트워크 오류 영구 차단 방지).
+const GEOCODE_FAIL_KEY = 'shuttle_geocode_failed_v1';
+const GEOCODE_FAIL_TTL = 3 * 24 * 60 * 60 * 1000; // 3일
+function loadGeocodeFailed() {
+  try {
+    const obj = JSON.parse(localStorage.getItem(GEOCODE_FAIL_KEY) || '{}');
+    const now = Date.now(), map = new Map();
+    for (const [addr, ts] of Object.entries(obj)) {
+      if (now - ts < GEOCODE_FAIL_TTL) map.set(addr, ts); // TTL 지난 건 제외 → 재시도 허용
+    }
+    return map;
+  } catch(e) { return new Map(); }
+}
+function saveGeocodeFailed(map) {
+  try { localStorage.setItem(GEOCODE_FAIL_KEY, JSON.stringify(Object.fromEntries(map))); } catch(e) {}
+}
+
 // ── 좌표 없는 정류장 일괄 geocoding + 시트 자동 저장 ──
 async function geocodeMissingStops() {
   // 승차(board)·하차(alight) 측을 각각 독립적으로 빈좌표 채움
@@ -4110,10 +4138,18 @@ async function geocodeMissingStops() {
   collect(ALL_ROUTES_ALIGHT, 'alight');
 
   if (candidates.length === 0) return;
-  console.log('[Geocode] 좌표 없는 정류장:', candidates.length, '개 — 자동 변환 시작');
+
+  // 이전에 변환 실패한(주소 못 찾는) 정류장은 매 로드 재시도하지 않음
+  const failed = loadGeocodeFailed();
+  const pending = candidates.filter(c => !failed.has(c.addr));
+  const skipped = candidates.length - pending.length;
+  if (pending.length === 0) return;
+  console.log('[Geocode] 좌표 없는 정류장:', pending.length, '개 — 자동 변환 시작',
+              skipped > 0 ? `(실패캐시 ${skipped}개 스킵)` : '');
 
   let updated = 0;
-  for (const { yoil, bus, stop, side, place, addr } of candidates) {
+  let failedChanged = false;
+  for (const { yoil, bus, stop, side, place, addr } of pending) {
     const coord = await geocodeAddress(addr);
     if (coord) {
       // 메모리 업데이트 (해당 측 + 현재 표시값)
@@ -4130,9 +4166,13 @@ async function geocodeMissingStops() {
       });
 
       updated++;
+    } else {
+      failed.set(addr, Date.now()); failedChanged = true; // 변환 실패 → 캐시 기록
     }
     await new Promise(r => setTimeout(r, 120)); // API 과호출 방지
   }
+
+  if (failedChanged) saveGeocodeFailed(failed);
 
   if (updated > 0) {
     console.log('[Geocode] 완료:', updated, '개 좌표 변환 → 지도 업데이트');
