@@ -4240,7 +4240,14 @@ async function geocodeMissingStops() {
 }
 
 // ── T맵 주소 → 좌표 변환 ──
-async function geocodeAddress(addr) {
+// T맵 fullAddrGeo는 "시 구 도로명 번호" 형식에서 동(洞)이 빠지면 못 찾는 경우가 많다
+// (예: '서울 양천구 목동서로 195' 실패 → '서울 양천구 목동 목동서로 195' 성공).
+// 그래서 1차 실패 시 구별 동 후보를 끼워 재시도한다.
+const TMAP_DONG_CANDIDATES = {
+  '양천구': ['목동','신정동','신월동'],
+  '구로구': ['구로동','신도림동','가리봉동','개봉동','고척동','오류동'],
+};
+async function tmapFullAddrGeo(addr) {
   try {
     const url = `https://apis.openapi.sk.com/tmap/geo/fullAddrGeo?version=1&format=json&coordType=WGS84GEO&fullAddr=${encodeURIComponent(addr)}`;
     const res = await fetch(url, { headers: { appKey: TMAP_KEY } });
@@ -4248,11 +4255,32 @@ async function geocodeAddress(addr) {
     const data = await res.json();
     const item = data?.coordinateInfo?.coordinate?.[0];
     if (!item) return null;
-    return { lat: parseFloat(item.newLat || item.lat), lng: parseFloat(item.newLon || item.lon) };
-  } catch(e) {
-    console.warn('[Geocode] 실패:', addr, e);
-    return null;
+    const lat = parseFloat(item.newLat || item.lat), lng = parseFloat(item.newLon || item.lon);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    return { lat, lng };
+  } catch(e) { return null; }
+}
+async function geocodeAddress(addr) {
+  let a = String(addr == null ? '' : addr).trim();
+  if (!a) return null;
+  // 괄호 안 주소 우선 추출('힐스(서울 …), 태권도'), 후문/정문 등 꼬리말 제거
+  const paren = a.match(/\((서울[^)]+)\)/);
+  if (paren) a = paren[1].trim();
+  a = a.replace(/\s*(후문|정문)\s*$/, '').trim();
+
+  let c = await tmapFullAddrGeo(a);
+  if (c) return c;
+
+  // 폴백: 동 후보를 끼워 재시도
+  const m = a.match(/^(서울\S*)\s+(\S+구)\s+(.+)$/);
+  if (m) {
+    const si = m[1], gu = m[2], rest = m[3];
+    for (const dg of (TMAP_DONG_CANDIDATES[gu] || [])) {
+      c = await tmapFullAddrGeo(`${si} ${gu} ${dg} ${rest}`);
+      if (c) return c;
+    }
   }
+  return null;
 }
 
 // =====================================================
