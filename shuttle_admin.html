@@ -3690,6 +3690,11 @@ async function handleExcelUpload(event) {
       const aAddr  = String(pick(r, ['하차주소']) || bAddr);
       const bLng   = pick(r, ['승차경도','경도']);
       const bLat   = pick(r, ['승차위도','위도']);
+      // 하차 좌표: 명시값 우선 → 없으면 '승하차 위치가 같을 때만' 승차 좌표 복사.
+      // 위치가 다르면 비워서 업로드 후 하차주소로 별도 지오코딩되게 함.
+      const sameLoc = (bAddr || bPlace) !== '' && (bAddr || bPlace) === (aAddr || aPlace);
+      const aLng = pick(r, ['하차경도']) || (sameLoc ? bLng : '');
+      const aLat = pick(r, ['하차위도']) || (sameLoc ? bLat : '');
       rowData = [
         bBus,
         normalizeTime(pick(r, ['등원시간','시간'])),
@@ -3697,8 +3702,7 @@ async function handleExcelUpload(event) {
         pick(r, ['하차']) || bBus,
         normalizeTime(pick(r, ['하원시간'])),
         aPlace, aAddr,
-        pick(r, ['하차경도']) || bLng,
-        pick(r, ['하차위도']) || bLat,
+        aLng, aLat,
         pick(r, ['요일']),
         pick(r, ['이름'])
       ];
@@ -4196,8 +4200,15 @@ async function geocodeMissingStops() {
 
   let updated = 0;
   let failedChanged = false;
+  const resolved = new Map(); // 이번 실행 중 변환 성공한 주소 → 좌표 (동일 주소 재호출 방지)
   for (const { yoil, bus, stop, side, place, addr } of pending) {
-    const coord = await geocodeAddress(addr);
+    let coord = resolved.get(addr);
+    let calledApi = false;
+    if (!coord) {
+      coord = await geocodeAddress(addr);
+      calledApi = true;
+      if (coord) resolved.set(addr, coord);
+    }
     if (coord) {
       // 메모리 업데이트 (해당 측 + 현재 표시값)
       if (side === 'alight') { stop.alightLat = coord.lat; stop.alightLng = coord.lng; }
@@ -4216,7 +4227,7 @@ async function geocodeMissingStops() {
     } else {
       failed.set(addr, Date.now()); failedChanged = true; // 변환 실패 → 캐시 기록
     }
-    await new Promise(r => setTimeout(r, 120)); // API 과호출 방지
+    if (calledApi) await new Promise(r => setTimeout(r, 120)); // 실제 API 호출 시에만 대기
   }
 
   if (failedChanged) saveGeocodeFailed(failed);
