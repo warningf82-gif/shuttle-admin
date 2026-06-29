@@ -3639,10 +3639,15 @@ async function handleExcelUpload(event) {
   const hasCampusCol = campusColIdx === 0; // 캠퍼스 컬럼이 첫 번째 열
 
   // 데이터 시작 행 (안내주석 행 자동 감지)
+  // 양식 가이드 행은 '자동' 좌표 표기나 '(캠퍼스명)' 같은 괄호 플레이스홀더를 포함한다.
+  // 실제 데이터(첫 컬럼이 이름/호차 무엇이든)는 이 표식이 없으므로 안전하게 구분된다.
   let dataRows = rawRows.slice(1);
   if (dataRows.length > 0) {
-    const firstVal = String(dataRows[0][hasCampusCol ? 1 : 0] || '').trim();
-    if (!firstVal || isNaN(parseInt(firstVal))) dataRows = dataRows.slice(1);
+    const looksLikeGuide = dataRows[0].some(c => {
+      const s = String(c == null ? '' : c).trim();
+      return s === '자동' || /^\(.*\)$/.test(s);
+    });
+    if (looksLikeGuide) dataRows = dataRows.slice(1);
   }
   dataRows = dataRows.filter(r => r.some(c => c !== '' && c !== null && c !== undefined));
   if (dataRows.length === 0) { alert('유효한 데이터 행이 없습니다.'); return; }
@@ -3697,10 +3702,10 @@ async function handleExcelUpload(event) {
       const aLat = pick(r, ['하차위도']) || (sameLoc ? bLat : '');
       rowData = [
         bBus,
-        normalizeTime(pick(r, ['등원시간','시간'])),
+        normalizeTime(pick(r, ['등원시간','승차시간','시간'])),
         bPlace, bAddr, bLng, bLat,
         pick(r, ['하차']) || bBus,
-        normalizeTime(pick(r, ['하원시간'])),
+        normalizeTime(pick(r, ['하원시간','하차시간'])),
         aPlace, aAddr,
         aLng, aLat,
         pick(r, ['요일']),
