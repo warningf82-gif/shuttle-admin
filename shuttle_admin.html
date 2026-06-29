@@ -3244,8 +3244,9 @@ function renderMap() {
     latlngs.push([stop.lat, stop.lng]);
   });
 
-  if (showRoute && latlngs.length > 1) {
-    routeLine = L.polyline(latlngs, {color, weight:3, opacity:0.5, dashArray:'6,4'}).addTo(map);
+  if (showRoute && latlngs.length > 0) {
+    // 마지막 구간을 캠퍼스까지 이어 최종 도착지를 표시
+    routeLine = L.polyline([...latlngs, [CAMPUS.lat, CAMPUS.lng]], {color, weight:3, opacity:0.5, dashArray:'6,4'}).addTo(map);
   }
   if (latlngs.length > 0 && !window._getMovedMap?.()) {
     map.fitBounds(L.latLngBounds([...latlngs, [CAMPUS.lat, CAMPUS.lng]]).pad(0.1), { maxZoom: 15 });
